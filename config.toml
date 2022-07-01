@@ -1,71 +1,58 @@
 baseURL = 'http://example.org/'
 languageCode = 'en-us'
 title = 'Fatih Emin Karahan'
-theme = 'Lovelt'
-
-[menu]
-  [[menu.main]]
-    weight = 1
-    identifier = "about"
-    pre = ""
-    post = ""
-    name = "About"
-    url = "/about"
-    title = "About"
+theme = "hugo-coder"
+colorScheme = "auto"
 
 [params]
-  defaultTheme = "auto"
-
-    [params.home]
-    [params.home.profile]
-      enable = true
-      # Gravatar Email for preferred avatar in home page
-      # Gravatar 邮箱，用于优先在主页显示的头像
-      gravatarEmail = ""
-      # URL of avatar shown in home page
-      # 主页显示头像的 URL
-      avatarURL = "/logo.JPG"
-      # title shown in home page (HTML format is supported)
-      # 主页显示的网站标题 (支持 HTML 格式)
-      title = ""
-      # subtitle shown in home page
-      # 主页显示的网站副标题
-      subtitle = "Android Developer"
-      # whether to use typeit animation for subtitle
-      # 是否为副标题显示打字机动画
-      typeit = true
-
-    [params.social]
-    GitHub = "FatihEmin48"
-    Linkedin = "fatih-karahan-b1276b190"
-    Twitter = "Fatih__Karahan"
-    Instagram = "fatiheminkarahan"
-    Email = "fatih81443@gmail.com"
-
-    [params.header]
-    # desktop header mode ["fixed", "normal", "auto"]
-    # 桌面端导航栏模式 ["fixed", "normal", "auto"]
-    desktopMode = "fixed"
-    # mobile header mode ["fixed", "normal", "auto"]
-    # 移动端导航栏模式 ["fixed", "normal", "auto"]
-    mobileMode = "auto"
-    # Header title config
-    # 页面头部导航栏标题配置
-    [params.header.title]
-      name = "Fatih Emin Karahan"
+author = "Fatih Emin Karahan"
+description = "Fatih Emin KARAHAN - Android Developer"
+info = ["Android Developer"]
+avatarURL = "/logo.JPG"
+#gravatar = "john.doe@example.com"
+dateFormat = "January 2, 2006"
 
 
-  [params.footer]
-    enable = true
-    # Custom content (HTML format is supported)
-    # 自定义内容 (支持 HTML 格式)
-    custom = ""
-    # whether to show Hugo and theme info
-    # 是否显示 Hugo 和主题信息
-    hugo = false
-    # whether to show copyright info
-    # 是否显示版权信息
-    copyright = false
-    # whether to show the author
-    # 是否显示作者
-    author = false
+[[params.social]]
+name = "LinkedIn"
+icon = "fa fa-2x fa-linkedin"
+weight = 1
+url = "https://www.linkedin.com/in/fatih-karahan-b1276b190/"
+
+[[params.social]]
+name = "Github"
+icon = "fa fa-2x fa-github"
+weight = 2
+url = "https://github.com/FatihEmin48"
+
+[[params.social]]
+name = "Instagram"
+icon = "fa fa-2x fa-instagram"
+weight = 3
+url = "https://www.instagram.com/fatiheminkarahan/?hl=tr"
+
+
+[[params.social]]
+name = "Twitter"
+icon = "fa fa-2x fa-twitter"
+weight = 4
+url = "https://twitter.com/Fatih__Karahan"
+
+[[params.social]]
+name = "Email"
+icon = "fa fa-2x fa-envelope"
+weight = 5
+url = "mailto:fatih81443@gmail.com"
+
+
+
+[[languages.en.menu.main]]
+name = "About"
+weight = 1
+url = "about/"
+
+[[languages.en.menu.main]]
+name = "Projects"
+weight = 2
+url = "projects/"
+
