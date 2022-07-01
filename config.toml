@@ -1,3 +1,58 @@
 baseURL = 'http://example.org/'
 languageCode = 'en-us'
 title = 'Fatih Emin Karahan'
+theme = "hugo-coder"
+colorScheme = "auto"
+
+[params]
+author = "Fatih Emin Karahan"
+description = "Fatih Emin KARAHAN - Android Developer"
+info = ["Android Developer"]
+avatarURL = "/logo.JPG"
+#gravatar = "john.doe@example.com"
+dateFormat = "January 2, 2006"
+
+
+[[params.social]]
+name = "LinkedIn"
+icon = "fa fa-2x fa-linkedin"
+weight = 1
+url = "https://www.linkedin.com/in/fatih-karahan-b1276b190/"
+
+[[params.social]]
+name = "Github"
+icon = "fa fa-2x fa-github"
+weight = 2
+url = "https://github.com/FatihEmin48"
+
+[[params.social]]
+name = "Instagram"
+icon = "fa fa-2x fa-instagram"
+weight = 3
+url = "https://www.instagram.com/fatiheminkarahan/?hl=tr"
+
+
+[[params.social]]
+name = "Twitter"
+icon = "fa fa-2x fa-twitter"
+weight = 4
+url = "https://twitter.com/Fatih__Karahan"
+
+[[params.social]]
+name = "Email"
+icon = "fa fa-2x fa-envelope"
+weight = 5
+url = "mailto:fatih81443@gmail.com"
+
+
+
+[[languages.en.menu.main]]
+name = "About"
+weight = 1
+url = "about/"
+
+[[languages.en.menu.main]]
+name = "Projects"
+weight = 2
+url = "projects/"
+
