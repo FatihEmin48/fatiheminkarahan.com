@@ -1,0 +1,57 @@
+{{ define "content" }}
+<article class="page">
+  <h1>{{ .Title }}</h1>
+
+  {{ with .Site.Params.bio }}
+  <p class="bio">{{ . }}</p>
+  {{ end }}
+
+  {{ .Content }}
+
+  {{ with .Params.education }}
+  <section class="cv-section">
+    <h2 class="section-heading">{{ i18n "educationHeading" }}</h2>
+    {{ range . }}
+    <div class="edu-item">
+      <div class="edu-header">
+        <span><strong>{{ .institution }}</strong> — {{ .degree }}</span>
+        <span class="edu-years">{{ .years }}</span>
+      </div>
+      <p class="edu-focus">{{ .focusLabel }}: {{ .focus }}</p>
+    </div>
+    {{ end }}
+  </section>
+  {{ end }}
+
+  {{ with .Params.experience }}
+  <section class="cv-section">
+    <h2 class="section-heading">{{ i18n "experienceHeading" }}</h2>
+    {{ range . }}
+    <div class="exp-item">
+      <div class="exp-header">
+        <span><strong>{{ .company }}</strong> — {{ .role }}</span>
+        <span class="exp-years">{{ .years }}</span>
+      </div>
+      <div class="exp-location">{{ .location }}</div>
+      <ul class="exp-bullets">
+        {{ range .bullets }}<li>{{ . }}</li>{{ end }}
+      </ul>
+    </div>
+    {{ end }}
+  </section>
+  {{ end }}
+
+  {{ with .Params.publications }}
+  <section class="cv-section">
+    <h2 class="section-heading">{{ i18n "publicationsHeading" }}</h2>
+    {{ range . }}
+    <div class="pub-item">
+      <p class="pub-title">{{ .title }}</p>
+      <p class="pub-meta">{{ .authors }} — {{ .venue }} — {{ .year }} —
+        <a href="{{ .url }}" target="_blank" rel="noopener">{{ .url }}</a></p>
+    </div>
+    {{ end }}
+  </section>
+  {{ end }}
+</article>
+{{ end }}

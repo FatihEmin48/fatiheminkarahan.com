@@ -18,3 +18,12 @@ other = "Özgeçmiş İndir"
 
 [readMore]
 other = "Devamını oku"
+
+[educationHeading]
+other = "Eğitim"
+
+[experienceHeading]
+other = "Mesleki Deneyim"
+
+[publicationsHeading]
+other = "Yayınlar"
