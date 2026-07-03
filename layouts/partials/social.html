@@ -1,0 +1,5 @@
+<ul class="social-list">
+  {{ range sort .Site.Params.social "weight" }}
+  <li><a href="{{ .url }}" title="{{ .name }}" target="_blank" rel="noopener me"><i class="{{ .icon }}"></i></a></li>
+  {{ end }}
+</ul>

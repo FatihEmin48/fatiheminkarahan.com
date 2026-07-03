@@ -1,0 +1,13 @@
+<div class="home">
+  {{ with .Site.Params.avatarURL }}
+  <img class="avatar" src="{{ . | relURL }}" alt="{{ $.Site.Params.author }}">
+  {{ end }}
+  <h1>{{ .Site.Params.author }}</h1>
+  {{ with .Site.Params.info }}
+  <h2>
+    {{ range $i, $line := . }}{{ if $i }}<br>{{ end }}{{ $line }}{{ end }}
+  </h2>
+  {{ end }}
+  {{ partial "social.html" . }}
+  {{ .Content }}
+</div>
