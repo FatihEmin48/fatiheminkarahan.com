@@ -1,0 +1,20 @@
+[poweredBy]
+other = '<a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> ile oluşturuldu'
+
+[toggleDarkMode]
+other = "Karanlık modu değiştir"
+
+[skillsHeading]
+other = "Yetenekler & Teknolojiler"
+
+[featuredProjectsHeading]
+other = "Öne Çıkan Projeler"
+
+[viewProjects]
+other = "Projeleri Görüntüle"
+
+[downloadCV]
+other = "Özgeçmiş İndir"
+
+[readMore]
+other = "Devamını oku"
