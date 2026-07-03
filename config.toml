@@ -1,16 +1,15 @@
 baseURL = 'http://example.org/'
 languageCode = 'en-us'
 title = 'Fatih Emin Karahan'
-theme = "hugo-coder"
-colorScheme = "auto"
 
 [params]
 author = "Fatih Emin Karahan"
-description = "Fatih Emin KARAHAN - Android Developer"
-info = ["Android Developer"]
+description = "Fatih Emin KARAHAN - Artificial Intelligence Engineer - Computer Vision/Natural Language Processing"
+info = ["Artificial Intelligence Engineer - Computer Vision/Natural Language Processing"]
 avatarURL = "/logo.JPG"
 #gravatar = "john.doe@example.com"
 dateFormat = "January 2, 2006"
+colorScheme = "auto"
 
 
 [[params.social]]

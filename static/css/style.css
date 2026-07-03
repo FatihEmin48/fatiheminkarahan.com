@@ -1,0 +1,152 @@
+:root,
+body.colorscheme-light {
+  --bg: #fafafa;
+  --fg: #212121;
+  --alt-bg: #e0e0e0;
+  --alt-fg: #000000;
+  --darker-alt-bg: #cccccc;
+  --link: #1565c0;
+}
+
+body.colorscheme-dark {
+  --bg: #212121;
+  --fg: #dadada;
+  --alt-bg: #424242;
+  --alt-fg: #dadada;
+  --darker-alt-bg: #4f4f4f;
+  --link: #42a5f5;
+}
+
+@media (prefers-color-scheme: dark) {
+  body.colorscheme-auto {
+    --bg: #212121;
+    --fg: #dadada;
+    --alt-bg: #424242;
+    --alt-fg: #dadada;
+    --darker-alt-bg: #4f4f4f;
+    --link: #42a5f5;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.6;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.wrapper {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.site-header .nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-bottom: 1.5rem;
+}
+
+.nav-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: var(--fg);
+}
+
+.nav-menu {
+  list-style: none;
+  display: flex;
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0;
+}
+
+.content {
+  flex: 1;
+}
+
+.home {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.avatar {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 1rem;
+}
+
+.home h1 {
+  margin: 0.2rem 0;
+}
+
+.home h2 {
+  font-weight: normal;
+  color: var(--alt-fg);
+  opacity: 0.8;
+  margin: 0.2rem 0 1.5rem;
+}
+
+.social-list {
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 0;
+  margin: 0 0 1.5rem;
+  font-size: 1.4rem;
+}
+
+.social-list a {
+  color: var(--fg);
+}
+
+.page h1 {
+  border-bottom: 1px solid var(--darker-alt-bg);
+  padding-bottom: 0.5rem;
+}
+
+.site-footer {
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.7;
+  padding-top: 2rem;
+}
+
+.theme-toggle {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  border: 1px solid var(--darker-alt-bg);
+  background: var(--alt-bg);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 1.1rem;
+  z-index: 10;
+}

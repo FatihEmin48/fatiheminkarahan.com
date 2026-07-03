@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="{{ .Site.LanguageCode }}">
+<head>
+  {{ partial "head.html" . }}
+</head>
+<body class="colorscheme-{{ .Site.Params.colorScheme | default "auto" }}">
+  {{ partial "toggle.html" . }}
+  <div class="wrapper">
+    {{ partial "header.html" . }}
+    <main class="content">
+      {{ block "content" . }}{{ end }}
+    </main>
+    {{ partial "footer.html" . }}
+  </div>
+  <script src="{{ "js/theme-toggle.js" | relURL }}" defer></script>
+</body>
+</html>

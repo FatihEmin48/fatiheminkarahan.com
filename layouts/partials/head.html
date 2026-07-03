@@ -1,0 +1,7 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }} · {{ .Site.Title }}{{ end }}</title>
+<meta name="description" content="{{ .Site.Params.description }}">
+<link rel="icon" href="{{ .Site.Params.avatarURL | relURL }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha512-+4zCK9k+qNFUR5W1AURgxagxqfWHFdRJqjZbY2+/rH+9K9AGr8V4jK5s7ie1S6f5uIqUXwRV5uSKObF2XjaVMg==" crossorigin="anonymous" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
