@@ -6,5 +6,6 @@
       <li><a href="{{ .URL | relLangURL }}">{{ .Name }}</a></li>
       {{ end }}
     </ul>
+    {{ partial "lang-switcher.html" . }}
   </nav>
 </header>

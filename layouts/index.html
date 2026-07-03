@@ -1,3 +1,6 @@
 {{ define "content" }}
 {{ partial "home.html" . }}
+{{ if and .IsHome (eq .Site.Language.Lang "en") }}
+<script src="{{ "js/lang-redirect.js" | relURL }}" defer></script>
+{{ end }}
 {{ end }}
