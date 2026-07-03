@@ -1,7 +1,3 @@
 <footer class="site-footer">
-  {{ if eq .Site.Language.Lang "tr" }}
-  <p>&copy; {{ now.Year }} {{ .Site.Params.author }} &middot; <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> ile oluşturuldu</p>
-  {{ else }}
-  <p>&copy; {{ now.Year }} {{ .Site.Params.author }} &middot; powered by <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a></p>
-  {{ end }}
+  <p>&copy; {{ now.Year }} {{ .Site.Params.author }} &middot; {{ i18n "poweredBy" | safeHTML }}</p>
 </footer>

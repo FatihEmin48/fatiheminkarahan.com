@@ -1,13 +1,56 @@
 <div class="home">
-  {{ with .Site.Params.avatarURL }}
-  <img class="avatar" src="{{ . | relURL }}" alt="{{ $.Site.Params.author }}">
+  <section class="hero">
+    {{ with .Site.Params.avatarURL }}
+    <img class="avatar" src="{{ . | relURL }}" alt="{{ $.Site.Params.author }}">
+    {{ end }}
+    <h1>{{ .Site.Params.author }}</h1>
+    {{ with .Site.Params.info }}
+    <h2>
+      {{ range $i, $line := . }}{{ if $i }}<br>{{ end }}{{ $line }}{{ end }}
+    </h2>
+    {{ end }}
+    {{ partial "social.html" . }}
+    {{ with .Site.Params.bio }}
+    <p class="bio">{{ . }}</p>
+    {{ end }}
+    <div class="cta-row">
+      <a class="btn btn-primary" href="{{ "projects/" | relLangURL }}">{{ i18n "viewProjects" }}</a>
+      {{ with .Site.Params.cvURL }}
+      <a class="btn btn-secondary" href="{{ . | relURL }}" target="_blank" rel="noopener">{{ i18n "downloadCV" }}</a>
+      {{ end }}
+    </div>
+  </section>
+
+  {{ with .Site.Params.skills }}
+  <section class="skills">
+    <h2 class="section-heading">{{ i18n "skillsHeading" }}</h2>
+    <div class="skills-grid">
+      {{ range . }}
+      <div class="skill-category">
+        <h3>{{ .category }}</h3>
+        <ul class="pill-list">
+          {{ range .items }}<li class="pill">{{ . }}</li>{{ end }}
+        </ul>
+      </div>
+      {{ end }}
+    </div>
+  </section>
   {{ end }}
-  <h1>{{ .Site.Params.author }}</h1>
-  {{ with .Site.Params.info }}
-  <h2>
-    {{ range $i, $line := . }}{{ if $i }}<br>{{ end }}{{ $line }}{{ end }}
-  </h2>
-  {{ end }}
-  {{ partial "social.html" . }}
-  {{ .Content }}
+
+  <section class="featured-projects">
+    <h2 class="section-heading">{{ i18n "featuredProjectsHeading" }}</h2>
+    <div class="project-grid">
+      {{ $slugs := slice "/crop-phenology-detection" "/broiler-chicken-detection" "/ai-dermatology-diagnosis" "/teknofest-autonomous-tractor" }}
+      {{ range $slugs }}
+        {{ with $.Site.GetPage . }}
+        <article class="project-card">
+          <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
+          {{ .Summary }}
+          <a class="read-more" href="{{ .RelPermalink }}">{{ i18n "readMore" }} &rarr;</a>
+        </article>
+        {{ end }}
+      {{ end }}
+    </div>
+    <p class="view-all"><a href="{{ "projects/" | relLangURL }}">{{ i18n "viewProjects" }} &rarr;</a></p>
+  </section>
 </div>

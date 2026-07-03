@@ -1,5 +1,3 @@
-{{ $label := "Toggle dark mode" }}
-{{ if eq .Site.Language.Lang "tr" }}{{ $label = "Karanlık modu değiştir" }}{{ end }}
-<button id="theme-toggle" class="theme-toggle" type="button" aria-label="{{ $label }}" title="{{ $label }}">
+<button id="theme-toggle" class="theme-toggle" type="button" aria-label="{{ i18n "toggleDarkMode" }}" title="{{ i18n "toggleDarkMode" }}">
   <i class="fa fa-moon-o"></i>
 </button>

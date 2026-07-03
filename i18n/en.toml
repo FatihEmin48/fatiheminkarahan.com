@@ -1,0 +1,20 @@
+[poweredBy]
+other = 'powered by <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a>'
+
+[toggleDarkMode]
+other = "Toggle dark mode"
+
+[skillsHeading]
+other = "Skills & Technologies"
+
+[featuredProjectsHeading]
+other = "Featured Projects"
+
+[viewProjects]
+other = "View Projects"
+
+[downloadCV]
+other = "Download CV"
+
+[readMore]
+other = "Read more"

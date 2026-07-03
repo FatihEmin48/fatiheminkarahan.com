@@ -9,6 +9,8 @@ description = "Fatih Emin KARAHAN - Artificial Intelligence Engineer - Computer 
 info = ["Artificial Intelligence Engineer - Computer Vision/Natural Language Processing"]
 avatarURL = "/logo.JPG"
 #gravatar = "john.doe@example.com"
+bio = "I conduct research in artificial intelligence and develop projects particularly in computer vision, natural language processing, and generative AI. I have built innovative projects on smart agriculture technologies, medical image analysis, and data processing pipelines."
+cvURL = "/FatihEminKARAHAN_CV_English.pdf"
 dateFormat = "January 2, 2006"
 colorScheme = "auto"
 
@@ -44,6 +46,30 @@ icon = "fa fa-2x fa-envelope"
 weight = 5
 url = "mailto:fatih81443@gmail.com"
 
+[[params.skills]]
+category = "Programming Languages"
+items = ["Python", "Java", "Swift", "SQL", "Arduino IDE"]
+
+[[params.skills]]
+category = "Computer Vision"
+items = ["OpenCV", "YOLO (v5-v11)", "CreateML", "EfficientNet", "ResNet"]
+
+[[params.skills]]
+category = "Natural Language Processing"
+items = ["Tokenization", "AI Agents", "RAG (Retrieval-Augmented Generation)"]
+
+[[params.skills]]
+category = "Machine Learning"
+items = ["Scikit-Learn", "Classification and Regression Algorithms"]
+
+[[params.skills]]
+category = "Deep Learning"
+items = ["TensorFlow", "PyTorch", "NumPy", "Matplotlib", "Pandas"]
+
+[[params.skills]]
+category = "Other Tools"
+items = ["CVAT", "Firebase", "Flutter", "Git", "Linux", "Arduino", "Raspberry Pi", "Jetson Nano"]
+
 
 [languages.en]
 label = "English"
@@ -68,6 +94,32 @@ weight = 2
 [languages.tr.params]
 description = "Fatih Emin KARAHAN - Yapay Zeka Mühendisi - Bilgisayarlı Görü/Doğal Dil İşleme"
 info = ["Yapay Zeka Mühendisi - Bilgisayarlı Görü/Doğal Dil İşleme"]
+bio = "Yapay zeka alanında çalışmalar yürütmekte olup; özellikle görüntü işleme, doğal dil işleme ve üretken yapay zeka konularında projeler geliştiriyorum. Akıllı tarım teknolojileri, medikal görüntü analizi ve veri işleme süreçleri üzerine yenilikçi projeler geliştirdim."
+cvURL = "/FatihEminKARAHAN_CV_T%C3%BCrk%C3%A7e.pdf"
+
+[[languages.tr.params.skills]]
+category = "Programlama Dilleri"
+items = ["Python", "Java", "Swift", "SQL", "Arduino IDE"]
+
+[[languages.tr.params.skills]]
+category = "Bilgisayarlı Görü"
+items = ["OpenCV", "YOLO (v5-v11)", "CreateML", "EfficientNet", "ResNet"]
+
+[[languages.tr.params.skills]]
+category = "Doğal Dil İşleme"
+items = ["Tokenization", "Yapay Zeka Ajanları", "RAG (Retrieval-Augmented Generation)"]
+
+[[languages.tr.params.skills]]
+category = "Makine Öğrenmesi"
+items = ["Scikit-Learn", "Sınıflandırma ve Regresyon Algoritmaları"]
+
+[[languages.tr.params.skills]]
+category = "Derin Öğrenme"
+items = ["TensorFlow", "PyTorch", "NumPy", "Matplotlib", "Pandas"]
+
+[[languages.tr.params.skills]]
+category = "Diğer Araçlar"
+items = ["CVAT", "Firebase", "Flutter", "Git", "Linux", "Arduino", "Raspberry Pi", "Jetson Nano"]
 
 [[languages.tr.menu.main]]
 name = "Hakkımda"
