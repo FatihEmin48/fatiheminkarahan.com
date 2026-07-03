@@ -18,3 +18,12 @@ other = "Download CV"
 
 [readMore]
 other = "Read more"
+
+[educationHeading]
+other = "Education"
+
+[experienceHeading]
+other = "Experience"
+
+[publicationsHeading]
+other = "Publications"
