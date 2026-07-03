@@ -1,0 +1,17 @@
+{{ $other := "tr" }}
+{{ if eq .Lang "tr" }}{{ $other = "en" }}{{ end }}
+<ul class="lang-switcher">
+  {{ if .IsTranslated }}
+    {{ range .Translations }}
+      {{ if eq .Lang $other }}
+      <li><a href="{{ .RelPermalink }}" hreflang="{{ .Lang }}" onclick="try{localStorage.setItem('preferredLang','{{ .Lang }}')}catch(e){}">{{ .Language.Label }}</a></li>
+      {{ end }}
+    {{ end }}
+  {{ else }}
+    {{ range .Site.Home.AllTranslations }}
+      {{ if eq .Lang $other }}
+      <li><a href="{{ .RelPermalink }}" hreflang="{{ .Lang }}" onclick="try{localStorage.setItem('preferredLang','{{ .Lang }}')}catch(e){}">{{ .Language.Label }}</a></li>
+      {{ end }}
+    {{ end }}
+  {{ end }}
+</ul>

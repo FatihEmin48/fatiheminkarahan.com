@@ -1,6 +1,7 @@
 baseURL = 'http://example.org/'
-languageCode = 'en-us'
 title = 'Fatih Emin Karahan'
+defaultContentLanguage = 'en'
+defaultContentLanguageInSubdir = false
 
 [params]
 author = "Fatih Emin Karahan"
@@ -44,6 +45,10 @@ weight = 5
 url = "mailto:fatih81443@gmail.com"
 
 
+[languages.en]
+label = "English"
+locale = "en-us"
+weight = 1
 
 [[languages.en.menu.main]]
 name = "About"
@@ -55,3 +60,21 @@ name = "Projects"
 weight = 2
 url = "projects/"
 
+[languages.tr]
+label = "Türkçe"
+locale = "tr-TR"
+weight = 2
+
+[languages.tr.params]
+description = "Fatih Emin KARAHAN - Yapay Zeka Mühendisi - Bilgisayarlı Görü/Doğal Dil İşleme"
+info = ["Yapay Zeka Mühendisi - Bilgisayarlı Görü/Doğal Dil İşleme"]
+
+[[languages.tr.menu.main]]
+name = "Hakkımda"
+weight = 1
+url = "about/"
+
+[[languages.tr.menu.main]]
+name = "Projeler"
+weight = 2
+url = "projects/"
