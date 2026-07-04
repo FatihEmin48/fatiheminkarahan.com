@@ -1,0 +1,37 @@
+{{ define "content" }}
+<article class="page">
+  <h1>{{ .Title }}</h1>
+
+  <section class="project-section">
+    <h2 class="section-heading">{{ i18n "researchProjectsHeading" }}</h2>
+    <div class="project-grid">
+      {{ range slice "/crop-phenology-detection" "/broiler-chicken-detection" "/ai-dermatology-diagnosis" "/teknofest-autonomous-tractor" }}
+        {{ with $.Site.GetPage . }}
+        <article class="project-card">
+          <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
+          {{ .Summary }}
+          <a class="read-more" href="{{ .RelPermalink }}">{{ i18n "readMore" }} &rarr;</a>
+        </article>
+        {{ end }}
+      {{ end }}
+    </div>
+  </section>
+
+  {{ $enSite := .Site }}
+  {{ range hugo.Sites }}{{ if eq .Language.Lang "en" }}{{ $enSite = . }}{{ end }}{{ end }}
+  <section class="project-section">
+    <h2 class="section-heading">{{ i18n "legacyProjectsHeading" }}</h2>
+    <div class="project-grid">
+      {{ range slice "/ileri-sayi-tahmin-oyunu" "/who-are-you" "/sayi-tahmin-uygulamasi" "/alışveriş-uygulaması" "/not-uygulamasi" "/hafiza-kart-oyunu" "/hava-durumu" "/x-o-x" }}
+        {{ with $enSite.GetPage . }}
+        <article class="project-card">
+          <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
+          {{ .Summary }}
+          <a class="read-more" href="{{ .RelPermalink }}">{{ i18n "readMore" }} &rarr;</a>
+        </article>
+        {{ end }}
+      {{ end }}
+    </div>
+  </section>
+</article>
+{{ end }}
