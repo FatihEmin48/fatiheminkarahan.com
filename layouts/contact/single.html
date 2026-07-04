@@ -1,0 +1,10 @@
+{{ define "content" }}
+<article class="page">
+  <h1>{{ .Title }}</h1>
+  {{ .Content }}
+  <div class="cta-row">
+    <a class="btn btn-primary" href="mailto:fatih81443@gmail.com">{{ i18n "sendEmail" }}</a>
+    <a class="btn btn-secondary" href="https://www.linkedin.com/in/fatiheminkarahan/" target="_blank" rel="noopener">LinkedIn</a>
+  </div>
+</article>
+{{ end }}

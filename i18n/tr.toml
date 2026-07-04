@@ -33,3 +33,6 @@ other = "Araştırma Projeleri"
 
 [legacyProjectsHeading]
 other = "Eski Projeler"
+
+[sendEmail]
+other = "E-posta Gönder"
