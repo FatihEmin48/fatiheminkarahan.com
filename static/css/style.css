@@ -240,6 +240,10 @@ a:hover {
   margin-top: 1.5rem;
 }
 
+.project-section {
+  margin-bottom: 2.5rem;
+}
+
 @media (max-width: 480px) {
   .cta-row {
     flex-direction: column;
