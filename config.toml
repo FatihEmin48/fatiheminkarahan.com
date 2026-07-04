@@ -46,6 +46,12 @@ icon = "fa fa-2x fa-envelope"
 weight = 5
 url = "mailto:fatih81443@gmail.com"
 
+[[params.social]]
+name = "Medium"
+icon = "fa fa-2x fa-medium"
+weight = 6
+url = "https://medium.com/@fatih_emin_karahan"
+
 [[params.skills]]
 category = "Programming Languages"
 items = ["Python", "Java", "Swift", "SQL", "Arduino IDE"]
@@ -85,6 +91,11 @@ url = "about/"
 name = "Projects"
 weight = 2
 url = "projects/"
+
+[[languages.en.menu.main]]
+name = "Contact"
+weight = 3
+url = "contact/"
 
 [languages.tr]
 label = "Türkçe"
@@ -130,3 +141,8 @@ url = "about/"
 name = "Projeler"
 weight = 2
 url = "projects/"
+
+[[languages.tr.menu.main]]
+name = "İletişim"
+weight = 3
+url = "contact/"

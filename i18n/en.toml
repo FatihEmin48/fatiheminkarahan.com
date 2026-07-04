@@ -33,3 +33,6 @@ other = "Research Projects"
 
 [legacyProjectsHeading]
 other = "Earlier Projects"
+
+[sendEmail]
+other = "Send Email"
