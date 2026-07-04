@@ -1,0 +1,19 @@
+{{ define "content" }}
+<article class="page">
+  <h1>{{ .Title }}</h1>
+  {{ .Content }}
+
+  <div class="project-grid">
+    {{ range .Site.Params.blogPosts }}
+    <article class="project-card blog-card">
+      {{ with .image }}<img class="blog-thumb" src="{{ . }}" alt="" loading="lazy">{{ end }}
+      <h3><a href="{{ .url }}" target="_blank" rel="noopener">{{ .title }}</a></h3>
+      <p>{{ .excerpt }}</p>
+      <a class="read-more" href="{{ .url }}" target="_blank" rel="noopener">{{ i18n "readMore" }} &rarr;</a>
+    </article>
+    {{ end }}
+  </div>
+
+  <p class="view-all"><a href="https://medium.com/@fatih_emin_karahan" target="_blank" rel="noopener">{{ i18n "viewOnMedium" }} &rarr;</a></p>
+</article>
+{{ end }}

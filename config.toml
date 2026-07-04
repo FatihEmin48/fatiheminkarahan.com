@@ -76,6 +76,54 @@ items = ["TensorFlow", "PyTorch", "NumPy", "Matplotlib", "Pandas"]
 category = "Other Tools"
 items = ["CVAT", "Firebase", "Flutter", "Git", "Linux", "Arduino", "Raspberry Pi", "Jetson Nano"]
 
+[[params.blogPosts]]
+title = "YOLO ile Kuş Sürüsü Tespiti"
+excerpt = "Üniversitede ders çıkışında denk geldiğim bir kuş sürüsü, aklıma bir proje fikri getirdi. YOLO kullanarak videodaki kuşlar tespit edilip ekranda nesne sayısı gösteriliyor."
+image = "https://cdn-images-1.medium.com/max/400/1*Vc3MkR_X2Cb1Kto3TgdB8Q.gif"
+url = "https://medium.com/p/1b5ce4b857b7"
+
+[[params.blogPosts]]
+title = "Düşük Işıkta Görüntü Elde Etme: Uzun Pozlama / IR-LED Sistemler"
+excerpt = "Düşük ışıkta, kameranın sensörüne yeterince ışık düşmediği için görüntüler karanlık ve bulanık olabilir. Uzun pozlama tekniği ve IR-LED sistemlerin kullanımı."
+image = "https://cdn-images-1.medium.com/max/640/1*VpgI_VdcdnOcLnpQshw-nQ.jpeg"
+url = "https://medium.com/p/34e62e8aa624"
+
+[[params.blogPosts]]
+title = "Doğal Dil İşlemede Morfolojik Analiz"
+excerpt = "Morfoloji, kelimelerin yapısını ve kelimelerin kökleri, ekleri, zaman, kişi gibi özelliklerini inceleyen dilbilim dalıdır. Türkçe morfolojik analiz ve Python uygulaması."
+image = "https://cdn-images-1.medium.com/max/1024/1*ZqzhyYMgsdvoBg0-1NvWEQ.png"
+url = "https://medium.com/p/69d158b6389e"
+
+[[params.blogPosts]]
+title = "YOLOv11 İlk Bakış"
+excerpt = "YOLOv11, Ultralytics tarafından 27 Eylül'de YOLO Vision 2024 etkinliğinde duyuruldu. Yeni sürümün özellikleri ve desteklediği görevler."
+image = "https://cdn-images-1.medium.com/max/1024/1*88ORyUAW1tqwhCVjCKY-ew.png"
+url = "https://medium.com/p/37d27b3cfef8"
+
+[[params.blogPosts]]
+title = "YOLOv10 Tarımda Yapay Zeka"
+excerpt = "Yaz tatilinde memlekete gittiğimde, yapay zeka ile tarımı nasıl birleştirebileceğimiz üzerine düşünürken aklıma güzel bir fikir geldi. Traktöre yerleştirilen kamera ile saman balyaları sayma projesi."
+image = "https://cdn-images-1.medium.com/max/1024/1*GTrSSSZmi6Rh8Y_VJZNv9g.png"
+url = "https://medium.com/p/6b76956233f8"
+
+[[params.blogPosts]]
+title = "YOLOv10 İlk Bakış"
+excerpt = "YOLO kullanmak için ilk önce bilgisayarınızda Anaconda Navigator, PyTorch ve CUDA kurulu olması gerekmektedir. YOLOv10 kurulum ve kullanım adımları."
+image = "https://cdn-images-1.medium.com/max/1024/0*QzrC0UVCSbBEsz6u"
+url = "https://medium.com/p/14ebe979043f"
+
+[[params.blogPosts]]
+title = "Bilginin Sessiz Sırrı Stenografi Nedir — Python ile Örnek Uygulama"
+excerpt = "Stenografi, kriptografiyle sık sık karıştırılsa da aralarında temel bir fark vardır. Resim dosyalarına gizli mesaj ekleme ve çıkarma tekniklerini Python ile uyguluyoruz."
+image = "https://cdn-images-1.medium.com/max/1024/1*Kmm5vRSHE1E5cmfddLpaOw.png"
+url = "https://medium.com/p/aad990904d21"
+
+[[params.blogPosts]]
+title = "Nesne Tespiti İçin Eğitim Seti Oluşturma"
+excerpt = "Nesne tespiti için bir eğitim seti hazırlarken, kaliteli verinin başarılı bir model için kritik önem taşıdığını unutmamalıyız. Veri temizliği, artırma ve doğrulama yöntemleri."
+image = ""
+url = "https://medium.com/p/905750cca517"
+
 
 [languages.en]
 label = "English"
@@ -93,8 +141,13 @@ weight = 2
 url = "projects/"
 
 [[languages.en.menu.main]]
-name = "Contact"
+name = "Blog"
 weight = 3
+url = "blog/"
+
+[[languages.en.menu.main]]
+name = "Contact"
+weight = 4
 url = "contact/"
 
 [languages.tr]
@@ -143,6 +196,11 @@ weight = 2
 url = "projects/"
 
 [[languages.tr.menu.main]]
-name = "İletişim"
+name = "Blog"
 weight = 3
+url = "blog/"
+
+[[languages.tr.menu.main]]
+name = "İletişim"
+weight = 4
 url = "contact/"
