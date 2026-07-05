@@ -1,0 +1,51 @@
+{{ define "content" }}
+<article class="page">
+  <h1>{{ .Title }}</h1>
+  {{ .Content }}
+
+  <section
+    id="tomato-app"
+    class="tomato-app"
+    data-api-base="{{ .Site.Params.tomatoApiURL }}"
+    data-t-status-ready="{{ i18n "tomatoStatusReady" }}"
+    data-t-status-waking="{{ i18n "tomatoStatusWaking" }}"
+    data-t-status-analyzing="{{ i18n "tomatoStatusAnalyzing" }}"
+    data-t-status-wrong-password="{{ i18n "tomatoStatusWrongPassword" }}"
+    data-t-status-locked-out="{{ i18n "tomatoStatusLockedOut" }}"
+    data-t-status-network-error="{{ i18n "tomatoStatusNetworkError" }}"
+    data-t-status-session-expired="{{ i18n "tomatoStatusSessionExpired" }}"
+    data-t-objects-detected-suffix="{{ i18n "tomatoObjectsDetectedSuffix" }}"
+    data-t-no-objects-detected="{{ i18n "tomatoNoObjectsDetected" }}"
+  >
+    <div id="tomato-login" class="tomato-panel">
+      <div class="tomato-login-row">
+        <input
+          id="tomato-password"
+          type="password"
+          placeholder="{{ i18n "tomatoPasswordPlaceholder" }}"
+          autocomplete="current-password"
+        />
+        <button id="tomato-login-btn" type="button" class="btn btn-primary">
+          {{ i18n "tomatoLoginButton" }}
+        </button>
+      </div>
+      <p id="tomato-login-status" class="status"></p>
+    </div>
+
+    <div id="tomato-detect" class="tomato-panel" hidden>
+      <div class="controls">
+        <input id="tomato-image-input" type="file" accept="image/*" />
+        <button id="tomato-sample-btn" type="button" class="btn btn-secondary">
+          {{ i18n "tomatoTrySample" }}
+        </button>
+      </div>
+      <p id="tomato-status" class="status"></p>
+      <div class="canvas-wrap">
+        <canvas id="tomato-canvas"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <script src="{{ "js/domates-tespit.js" | relURL }}" defer></script>
+</article>
+{{ end }}

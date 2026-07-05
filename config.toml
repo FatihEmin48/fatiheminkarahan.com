@@ -11,6 +11,7 @@ avatarURL = "/logo.JPG"
 #gravatar = "john.doe@example.com"
 bio = "I conduct research in artificial intelligence and develop projects particularly in computer vision, natural language processing, and generative AI. I have built innovative projects on smart agriculture technologies, medical image analysis, and data processing pipelines."
 cvURL = "/FatihEminKARAHAN_CV_English.pdf"
+tomatoApiURL = "https://domates-tespit-api.onrender.com"
 dateFormat = "January 2, 2006"
 colorScheme = "auto"
 
