@@ -2,6 +2,21 @@
 <article class="page">
   <h1>{{ .Title }}</h1>
 
+  {{ with .Site.GetPage "/about" }}
+  {{ with .Params.publications }}
+  <section class="cv-section publications">
+    <h2 class="section-heading">{{ i18n "publicationsHeading" }}</h2>
+    {{ range . }}
+    <div class="pub-item">
+      <p class="pub-title">{{ .title }}</p>
+      <p class="pub-meta">{{ .authors }} — {{ .venue }} — {{ .year }} —
+        <a href="{{ .url }}" target="_blank" rel="noopener">{{ .url }}</a></p>
+    </div>
+    {{ end }}
+  </section>
+  {{ end }}
+  {{ end }}
+
   <section class="project-section">
     <h2 class="section-heading">{{ i18n "researchProjectsHeading" }}</h2>
     <div class="project-grid">
