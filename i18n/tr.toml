@@ -81,3 +81,6 @@ other = "İletişim"
 
 [chatQContact]
 other = "Nasıl ulaşabilirim?"
+
+[cameraButtonLabel]
+other = "Canlı nesne tanımayı dene"
