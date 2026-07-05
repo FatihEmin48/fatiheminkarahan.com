@@ -5,7 +5,7 @@
   <section class="project-section">
     <h2 class="section-heading">{{ i18n "researchProjectsHeading" }}</h2>
     <div class="project-grid">
-      {{ range slice "/domates-tespiti" "/crop-phenology-detection" "/broiler-chicken-detection" "/ai-dermatology-diagnosis" "/teknofest-autonomous-tractor" }}
+      {{ range slice "/domates-tespiti" "/egg-detection" "/crop-phenology-detection" "/broiler-chicken-detection" "/ai-dermatology-diagnosis" "/teknofest-autonomous-tractor" }}
         {{ with $.Site.GetPage . }}
         <article class="project-card">
           <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
