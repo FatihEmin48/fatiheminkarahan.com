@@ -1,7 +1,7 @@
 ---
 title: YOLO ile Yumurta Tespiti ve Sayımı
 ---
-Holluktaki yumurtaları ve çatlak yumurtaları otomatik olarak tespit edip sayan, YOLO tabanlı bir bilgisayarlı görü sistemi — ilk olarak bir mobil uygulama olarak geliştirildi. Bu tarayıcı tabanlı sürüm, aynı eğitilmiş modeli tamamen istemci tarafında çalıştırıyor.
+Holluktaki yumurtaları otomatik olarak tespit edip sayan, YOLO tabanlı bir bilgisayarlı görü sistemi — ilk olarak bir mobil uygulama olarak geliştirildi. Bu tarayıcı tabanlı sürüm, aynı eğitilmiş modeli tamamen istemci tarafında çalıştırıyor.
 
 <!--more-->
 
