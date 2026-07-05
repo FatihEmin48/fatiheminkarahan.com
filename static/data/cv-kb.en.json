@@ -1,0 +1,102 @@
+[
+  {
+    "id": "contact",
+    "category": "Contact",
+    "text": "Fatih Emin Karahan, Artificial Intelligence Engineer (Computer Vision / Natural Language Processing). Phone: +90 554 692 91 68. Email: fatih81443@gmail.com. LinkedIn: linkedin.com/in/fatiheminkarahan. GitHub: github.com/FatihEmin48. Google Scholar: scholar.google.com (Fatih Emin Karahan). Medium: medium.com/@fatiheminkarahan."
+  },
+  {
+    "id": "about",
+    "category": "About",
+    "text": "Fatih Emin Karahan is a Computer Engineering master's student at Bursa Uludağ University. He conducts research in artificial intelligence, particularly in computer vision, natural language processing, and generative AI. He has built innovative projects on smart agriculture technologies, medical image analysis, and data processing pipelines."
+  },
+  {
+    "id": "education-msc",
+    "category": "Education",
+    "text": "Bursa Uludağ University - M.Sc. in Computer Engineering, 2024-2026. Focus areas: Computer Vision, Machine Learning, Natural Language Processing, Bioinformatics, Smart Agriculture Systems."
+  },
+  {
+    "id": "education-pedagogical",
+    "category": "Education",
+    "text": "Bursa Uludağ University - Pedagogical Formation, 2024-2025. Focus areas: Introduction to Education, Classroom Management, Guidance, Teaching Principles and Methods, Measurement in Education."
+  },
+  {
+    "id": "education-bsc",
+    "category": "Education",
+    "text": "Bursa Uludağ University - B.Sc. in Computer Engineering, 2019-2023. Core skills: Python, Java, SQL, Algorithms, Problem Analysis, Project Management, Presentation."
+  },
+  {
+    "id": "skill-languages",
+    "category": "Technical Skills",
+    "text": "Programming Languages: Python, Java, Swift, SQL, Arduino IDE."
+  },
+  {
+    "id": "skill-cv",
+    "category": "Technical Skills",
+    "text": "Computer Vision skills: OpenCV, YOLO (v5-v11), CreateML, EfficientNet, ResNet."
+  },
+  {
+    "id": "skill-nlp",
+    "category": "Technical Skills",
+    "text": "Natural Language Processing skills: Tokenization, AI Agents, RAG (Retrieval-Augmented Generation)."
+  },
+  {
+    "id": "skill-ml",
+    "category": "Technical Skills",
+    "text": "Machine Learning skills: Scikit-Learn, Classification and Regression Algorithms."
+  },
+  {
+    "id": "skill-dl",
+    "category": "Technical Skills",
+    "text": "Deep Learning skills: TensorFlow, PyTorch, NumPy, Matplotlib, Pandas."
+  },
+  {
+    "id": "skill-other",
+    "category": "Technical Skills",
+    "text": "Other tools: CVAT, Firebase, Flutter, Git, Linux, Arduino, Raspberry Pi, Jetson Nano."
+  },
+  {
+    "id": "experience-searcly",
+    "category": "Professional Experience",
+    "text": "SEARCLY, Computer Vision - AI Engineer, 05.2024-10.2024, Bursa. Built a 500,000+ image dataset using web scraping techniques and prepared 300,000 images for model training. Trained and optimized ResNet and EfficientNet models for image classification. Trained a YOLOv10 object detection model on a custom dataset and deployed it to production."
+  },
+  {
+    "id": "experience-gorsentam",
+    "category": "Professional Experience",
+    "text": "GÖRSENTAM, Computer Vision - AI Engineer Intern, 02.2023-05.2023, Bursa. Developed a cross-platform mobile application with the Flutter framework. Designed a real-time image processing application using a YOLOv5 model. Managed image annotation workflows on the CVAT platform and led the data annotation team. Collaborated with the company on his undergraduate thesis project."
+  },
+  {
+    "id": "experience-vemus",
+    "category": "Professional Experience",
+    "text": "VEMUS, Mobile Developer Intern, 10.2022-01.2023, Bursa. Developed an Android mobile application using Java and Firebase backend services. Performed feature development and bug fixing on the company's 'HopinLock' smart lock application."
+  },
+  {
+    "id": "project-phenology",
+    "category": "Projects",
+    "text": "An End-to-End Deep Learning Framework for Crop Type and Phenological Stage Identification (2026). Developed a 12-class deep learning framework detecting four growth stages (seed, bud, flower, harvestable fruit) of okra, pepper, and eggplant plants. Collected images from agricultural fields in Muğla and enriched them with open-source data to contribute a new labeled dataset. Compared YOLO, Faster R-CNN, and RT-DETR-L architectures, achieving mAP@0.5:0.95 = 72.81%. Conducted under the supervision of Assoc. Prof. Gıyasettin Özcan, published in IEEE Access."
+  },
+  {
+    "id": "project-broiler",
+    "category": "Projects",
+    "text": "Automatic Detection of Weekly Growth Stages and Slaughter Time in Broiler Chickens with a YOLO-Based Deep Learning Model (2026). Developed an AI system that automatically detects chickens that have reached slaughter time on poultry farms. Managed data collection and model training in a real farm environment. Published in ESTUDAM Journal of Informatics."
+  },
+  {
+    "id": "project-dermatology",
+    "category": "Projects",
+    "text": "AI-Assisted Dermatology Diagnosis System (2025). Developed an AI model for segmenting the dermis and epidermis layers and atypical cells in skin biopsy images. Prepared a dataset using medical data obtained from Bursa Uludağ University Hospital, with precise annotation using CVAT. Academic publication in preparation with Assoc. Prof. Gıyasettin Özcan."
+  },
+  {
+    "id": "project-teknofest",
+    "category": "Projects",
+    "text": "TEKNOFEST Autonomous Tractor Competition (2024). Developed an image processing system that detects weeds and lettuce plants. Designed a GPS-based precise positioning and autonomous navigation algorithm, with automatic lane generation and tracking from detected plant rows. Optimized real-time image processing on the Jetson Nano."
+  },
+  {
+    "id": "publications",
+    "category": "Publications",
+    "text": "Publications: 'An End-to-End Deep Learning Framework for Crop Type and Phenological Stage Identification', Karahan, F. E., Celikel, T., & Ozcan, G., IEEE Access, 14, 97546-97558 (2026), doi.org/10.1109/ACCESS.2026.3707086. 'Automatic Detection of Weekly Growth Stages and Slaughter Time in Broiler Chickens with a YOLO-Based Deep Learning Model', Karahan, F. E., & Özcan, G., ESTUDAM Journal of Informatics, 1, 31-36 (2026), doi.org/10.53608/estudambilisim.1907006."
+  },
+  {
+    "id": "reference",
+    "category": "References",
+    "text": "Reference: Assoc. Prof. Gıyasettin Özcan, M.Sc. Advisor, Bursa Uludağ University. Email: gozcan@uludag.edu.tr. Phone: +90 (224) 294 2792."
+  }
+]
