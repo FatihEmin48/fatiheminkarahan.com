@@ -1,7 +1,7 @@
 ---
 title: Egg Detection and Counting with YOLO
 ---
-A YOLO-based computer vision system that detects eggs and cracked eggs in a coop and counts them automatically, originally built as a mobile app. This browser-based version runs the same trained model entirely client-side.
+A YOLO-based computer vision system that detects eggs in a coop and counts them automatically, originally built as a mobile app. This browser-based version runs the same trained model entirely client-side.
 
 <!--more-->
 
