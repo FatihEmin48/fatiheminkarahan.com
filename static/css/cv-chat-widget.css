@@ -197,3 +197,43 @@
     bottom: 126px;
   }
 }
+
+.floating-btn {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--link);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  z-index: 9999;
+  transition: transform 0.15s ease;
+}
+
+.floating-btn:hover {
+  transform: scale(1.06);
+}
+
+.floating-btn svg {
+  width: 28px;
+  height: 28px;
+}
+
+@media (max-width: 420px) {
+  .floating-btn {
+    left: 14px;
+    bottom: 20px;
+    width: 46px;
+    height: 46px;
+  }
+
+  .floating-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+}
