@@ -178,12 +178,22 @@
 
 @media (max-width: 420px) {
   #cv-chat-widget {
-    right: 16px;
-    bottom: 72px;
+    right: 14px;
+    bottom: 70px;
+  }
+
+  .cv-chat-toggle {
+    width: 46px;
+    height: 46px;
+  }
+
+  .cv-chat-toggle svg {
+    width: 20px;
+    height: 20px;
   }
 
   .cv-chat-panel {
-    right: 16px;
-    bottom: 140px;
+    right: 14px;
+    bottom: 126px;
   }
 }
