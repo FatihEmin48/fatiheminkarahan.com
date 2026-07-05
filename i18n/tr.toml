@@ -87,3 +87,42 @@ other = "Nasıl ulaşabilirim?"
 
 [cameraButtonLabel]
 other = "Canlı nesne tanımayı dene"
+
+[tomatoPasswordPlaceholder]
+other = "Şifre"
+
+[tomatoLoginButton]
+other = "Giriş yap"
+
+[tomatoChooseImage]
+other = "Fotoğraf seç"
+
+[tomatoTrySample]
+other = "Örnek fotoğraf dene"
+
+[tomatoStatusReady]
+other = "Giriş yapıldı. Analiz için bir fotoğraf seçin."
+
+[tomatoStatusWaking]
+other = "Sunucu uyanıyor, bu bir dakikaya kadar sürebilir..."
+
+[tomatoStatusAnalyzing]
+other = "Analiz ediliyor..."
+
+[tomatoStatusWrongPassword]
+other = "Şifre hatalı."
+
+[tomatoStatusLockedOut]
+other = "Çok fazla başarısız deneme. Lütfen birkaç dakika bekleyin."
+
+[tomatoStatusNetworkError]
+other = "Sunucuya ulaşılamadı. Lütfen tekrar deneyin."
+
+[tomatoStatusSessionExpired]
+other = "Oturumunuzun süresi doldu, lütfen tekrar giriş yapın."
+
+[tomatoObjectsDetectedSuffix]
+other = "nesne tespit edildi."
+
+[tomatoNoObjectsDetected]
+other = "Domates tespit edilemedi."

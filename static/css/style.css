@@ -343,6 +343,58 @@ a:hover {
   padding-top: 2rem;
 }
 
+.tomato-app {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: var(--alt-bg);
+  border: 1px solid var(--darker-alt-bg);
+  border-radius: 8px;
+}
+
+.tomato-panel .controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.tomato-login-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.tomato-login-row input,
+.tomato-panel input[type="file"] {
+  flex: 1;
+  min-width: 160px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--darker-alt-bg);
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.tomato-panel .status {
+  font-size: 0.9rem;
+  opacity: 0.85;
+  min-height: 1.2em;
+}
+
+.tomato-panel .canvas-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.tomato-panel canvas {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid var(--darker-alt-bg);
+}
+
 .theme-toggle {
   position: fixed;
   right: 1.25rem;

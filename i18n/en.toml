@@ -87,3 +87,42 @@ other = "How can I reach him?"
 
 [cameraButtonLabel]
 other = "Try live object detection"
+
+[tomatoPasswordPlaceholder]
+other = "Password"
+
+[tomatoLoginButton]
+other = "Log in"
+
+[tomatoChooseImage]
+other = "Choose a photo"
+
+[tomatoTrySample]
+other = "Try a sample photo"
+
+[tomatoStatusReady]
+other = "Logged in. Choose a photo to analyze."
+
+[tomatoStatusWaking]
+other = "Waking up the server, this can take up to a minute..."
+
+[tomatoStatusAnalyzing]
+other = "Analyzing..."
+
+[tomatoStatusWrongPassword]
+other = "Wrong password."
+
+[tomatoStatusLockedOut]
+other = "Too many failed attempts. Please wait a few minutes."
+
+[tomatoStatusNetworkError]
+other = "Couldn't reach the server. Please try again."
+
+[tomatoStatusSessionExpired]
+other = "Your session expired, please log in again."
+
+[tomatoObjectsDetectedSuffix]
+other = "object(s) detected."
+
+[tomatoNoObjectsDetected]
+other = "No tomatoes detected."
