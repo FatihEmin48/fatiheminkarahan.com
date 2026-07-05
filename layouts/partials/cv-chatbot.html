@@ -1,0 +1,27 @@
+<div id="cv-chat-widget">
+  <button id="cv-chat-toggle" class="cv-chat-toggle" type="button" aria-label="Bana soru sor" aria-expanded="false" aria-controls="cv-chat-panel">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2z"/>
+    </svg>
+  </button>
+
+  <div id="cv-chat-panel" class="cv-chat-panel" hidden>
+    <div class="cv-chat-header">
+      <span>Bana Sor</span>
+      <button id="cv-chat-close" class="cv-chat-close" type="button" aria-label="Kapat">&times;</button>
+    </div>
+    <div id="cv-chat-status" class="cv-chat-status">Başlatılıyor...</div>
+    <div id="cv-chat-messages" class="cv-chat-messages"></div>
+    <div class="cv-chat-chips">
+      <button class="cv-chat-chip" data-q="Hangi üniversitede okuyor?">Eğitimi</button>
+      <button class="cv-chat-chip" data-q="Hangi projelerde çalıştı?">Projeleri</button>
+      <button class="cv-chat-chip" data-q="Yayınladığı makaleler neler?">Yayınları</button>
+      <button class="cv-chat-chip" data-q="Nasıl ulaşabilirim?">İletişim</button>
+    </div>
+    <form id="cv-chat-form" class="cv-chat-input-row">
+      <input id="cv-chat-input" type="text" placeholder="Bir şey sor..." disabled autocomplete="off" />
+      <button type="submit" disabled>Gönder</button>
+    </form>
+  </div>
+</div>
+<script type="module" src="{{ "js/cv-chat-widget.js" | relURL }}"></script>

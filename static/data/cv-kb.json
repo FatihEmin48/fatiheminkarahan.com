@@ -1,0 +1,102 @@
+[
+  {
+    "id": "iletisim",
+    "category": "İletişim",
+    "text": "Fatih Emin Karahan, Yapay Zeka Mühendisi (Bilgisayarlı Görü / Doğal Dil İşleme). Telefon: +90 554 692 91 68. E-posta: fatih81443@gmail.com. LinkedIn: linkedin.com/in/fatiheminkarahan. GitHub: github.com/FatihEmin48. Google Scholar: scholar.google.com (Fatih Emin Karahan). Medium: medium.com/@fatiheminkarahan."
+  },
+  {
+    "id": "hakkimda",
+    "category": "Hakkımda",
+    "text": "Fatih Emin Karahan, Bursa Uludağ Üniversitesi'nde Bilgisayar Mühendisliği yüksek lisans öğrencisidir. Yapay zeka alanında, özellikle görüntü işleme, doğal dil işleme ve üretken yapay zeka konularında projeler geliştirmektedir. Akıllı tarım teknolojileri, medikal görüntü analizi ve veri işleme süreçleri üzerine yenilikçi projeler geliştirmiştir."
+  },
+  {
+    "id": "egitim-yuksek-lisans",
+    "category": "Eğitim",
+    "text": "Bursa Uludağ Üniversitesi - Bilgisayar Mühendisliği Yüksek Lisans, 2024-2026. Odak alanları: Bilgisayarlı Görü, Makine Öğrenmesi, Doğal Dil İşleme, Biyoenformatik, Akıllı Tarım Sistemleri."
+  },
+  {
+    "id": "egitim-pedagojik",
+    "category": "Eğitim",
+    "text": "Bursa Uludağ Üniversitesi - Pedagojik Formasyon, 2024-2025. Odak alanları: Eğitime Giriş, Sınıf Yönetimi, Rehberlik, Öğretim İlke ve Yöntemleri, Eğitimde Ölçme Yöntemleri."
+  },
+  {
+    "id": "egitim-lisans",
+    "category": "Eğitim",
+    "text": "Bursa Uludağ Üniversitesi - Bilgisayar Mühendisliği Lisans, 2019-2023. Temel beceriler: Python, Java, SQL, Algoritmalar, Problem Analizi, Proje Yönetimi, Sunum Hazırlama."
+  },
+  {
+    "id": "yetenek-diller",
+    "category": "Teknik Yetenekler",
+    "text": "Programlama Dilleri: Python, Java, Swift, SQL, Arduino IDE."
+  },
+  {
+    "id": "yetenek-cv",
+    "category": "Teknik Yetenekler",
+    "text": "Bilgisayarlı Görü becerileri: OpenCV, YOLO (v5-v11), CreateML, EfficientNet, ResNet."
+  },
+  {
+    "id": "yetenek-nlp",
+    "category": "Teknik Yetenekler",
+    "text": "Doğal Dil İşleme becerileri: Tokenization, Yapay Zeka Ajanları (AI Agents), RAG (Retrieval-Augmented Generation)."
+  },
+  {
+    "id": "yetenek-ml",
+    "category": "Teknik Yetenekler",
+    "text": "Makine Öğrenmesi becerileri: Scikit-Learn, Sınıflandırma ve Regresyon Algoritmaları."
+  },
+  {
+    "id": "yetenek-dl",
+    "category": "Teknik Yetenekler",
+    "text": "Derin Öğrenme becerileri: TensorFlow, PyTorch, NumPy, Matplotlib, Pandas."
+  },
+  {
+    "id": "yetenek-diger",
+    "category": "Teknik Yetenekler",
+    "text": "Diğer araçlar: CVAT, Firebase, Flutter, Git, Linux, Arduino, Raspberry Pi, Jetson Nano."
+  },
+  {
+    "id": "deneyim-searcly",
+    "category": "Mesleki Deneyim",
+    "text": "SEARCLY, Bilgisayarlı Görü - Yapay Zeka Mühendisi, 05.2024-10.2024, Bursa. Web çekme teknikleriyle 500.000+ görüntü veri seti oluşturdu ve 300.000 görüntüyü model eğitimi için hazırladı. ResNet ve EfficientNet modellerini eğitip optimize etti. YOLOv10 nesne tespit modelini özel veri seti üzerinde eğitip üretim ortamına dağıttı."
+  },
+  {
+    "id": "deneyim-gorsentam",
+    "category": "Mesleki Deneyim",
+    "text": "GÖRSENTAM, Bilgisayarlı Görü - Yapay Zeka Mühendisi Stajyeri, 02.2023-05.2023, Bursa. Flutter ile çapraz platform mobil uygulama geliştirdi. YOLOv5 ile gerçek zamanlı görüntü işleme uygulaması tasarladı. CVAT ile görüntü etiketleme sürecini yönetti ve etiketleme ekibinin liderliğini yaptı. Bitirme tezi projesinde şirketle işbirliği yaptı."
+  },
+  {
+    "id": "deneyim-vemus",
+    "category": "Mesleki Deneyim",
+    "text": "VEMUS, Mobil Geliştirici Stajyeri, 10.2022-01.2023, Bursa. Java ve Firebase kullanarak Android mobil uygulaması geliştirdi. Şirketin 'HopinLock' akıllı kilit uygulamasında özellik geliştirme ve hata düzeltme yaptı."
+  },
+  {
+    "id": "proje-fenolojik",
+    "category": "Projeler",
+    "text": "Ürün Türü ve Fenolojik Evre Tanımlanması için Uçtan Uca Bir Derin Öğrenme Çerçevesi (2026). Bamya, biber ve patlıcan bitkilerinin dört gelişim evresini (tohum, tomurcuk, çiçek, hasat edilebilir meyve) tespit eden 12 sınıflı bir derin öğrenme çerçevesi geliştirdi. Muğla'daki tarım alanlarından topladığı görüntüleri açık kaynak verilerle zenginleştirerek yeni bir etiketli veri seti oluşturdu. YOLO, Faster R-CNN ve RT-DETR-L mimarilerini karşılaştırdı; mAP@0.5:0.95 = %72,81 sonucuna ulaştı. Doç. Dr. Gıyasettin Özcan danışmanlığında yürütülen çalışma IEEE Access dergisinde yayımlandı."
+  },
+  {
+    "id": "proje-broiler",
+    "category": "Projeler",
+    "text": "YOLO Tabanlı Derin Öğrenme Modeli ile Broiler Tavuklarda Haftalık Gelişim Aşamalarının ve Kesim Zamanının Otomatik Tespiti (2026). Tavuk çiftliklerinde kesim zamanı gelen tavukları otomatik tespit eden yapay zeka sistemi geliştirdi. Gerçek çiftlik ortamından veri toplama ve model eğitimi süreçlerini yönetti. Çalışma ESTUDAM Bilişim Dergisi'nde yayımlandı."
+  },
+  {
+    "id": "proje-dermatoloji",
+    "category": "Projeler",
+    "text": "Yapay Zeka Destekli Dermatoloji Tanı Sistemi (2025). Deri biyopsisi görüntülerinde dermis, epidermis katmanları ve atipik hücrelerin bölütlenmesi için yapay zeka modeli geliştirdi. Bursa Uludağ Üniversitesi Hastanesi'nden temin edilen tıbbi verilerle veri seti hazırladı, CVAT ile hassas etiketleme yaptı. Doç. Dr. Gıyasettin Özcan ile akademik yayın hazırlığı devam ediyor."
+  },
+  {
+    "id": "proje-teknofest",
+    "category": "Projeler",
+    "text": "TEKNOFEST Otonom Traktör Yarışması (2024). Yabani ot ve marul bitkilerini tespit eden görüntü işleme sistemi geliştirdi. GPS tabanlı hassas konum belirleme ve otonom navigasyon algoritması tasarladı. Tespit edilen bitki sıralarından otomatik şerit oluşturma ve takip sistemi uyguladı. Jetson Nano üzerinde gerçek zamanlı görüntü işleme optimizasyonu yaptı."
+  },
+  {
+    "id": "yayinlar",
+    "category": "Yayınlar",
+    "text": "Yayınlar: 'An End-to-End Deep Learning Framework for Crop Type and Phenological Stage Identification', Karahan, F. E., Celikel, T., & Ozcan, G., IEEE Access, 14, 97546-97558 (2026), doi.org/10.1109/ACCESS.2026.3707086. 'YOLO Tabanlı Derin Öğrenme Modeli ile Broiler Tavuklarda Haftalık Gelişim Aşamalarının ve Kesim Zamanının Otomatik Tespiti', Karahan, F. E., & Özcan, G., ESTUDAM Bilişim Dergisi, 1, 31-36 (2026), doi.org/10.53608/estudambilisim.1907006."
+  },
+  {
+    "id": "referans",
+    "category": "Referans",
+    "text": "Referans: Doç. Dr. Gıyasettin Özcan, Yüksek Lisans Danışmanı, Bursa Uludağ Üniversitesi. E-posta: gozcan@uludag.edu.tr. Telefon: +90 (224) 294 2792."
+  }
+]
