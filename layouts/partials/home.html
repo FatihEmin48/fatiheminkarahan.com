@@ -40,7 +40,7 @@
   <section class="featured-projects">
     <h2 class="section-heading">{{ i18n "featuredProjectsHeading" }}</h2>
     <div class="project-grid">
-      {{ $slugs := slice "/crop-phenology-detection" "/broiler-chicken-detection" "/ai-dermatology-diagnosis" "/teknofest-autonomous-tractor" }}
+      {{ $slugs := slice "/browser-object-detector" "/crop-phenology-detection" "/broiler-chicken-detection" "/ai-dermatology-diagnosis" "/teknofest-autonomous-tractor" }}
       {{ range $slugs }}
         {{ with $.Site.GetPage . }}
         <article class="project-card">
