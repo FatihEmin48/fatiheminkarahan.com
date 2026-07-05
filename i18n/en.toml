@@ -39,3 +39,45 @@ other = "Send Email"
 
 [viewOnMedium]
 other = "View all on Medium"
+
+[chatToggleLabel]
+other = "Ask me a question"
+
+[chatStarting]
+other = "Starting..."
+
+[chatHeader]
+other = "Ask Me"
+
+[chatClose]
+other = "Close"
+
+[chatPlaceholder]
+other = "Ask something..."
+
+[chatSend]
+other = "Send"
+
+[chatChipEducation]
+other = "Education"
+
+[chatQEducation]
+other = "Which university does he study at?"
+
+[chatChipProjects]
+other = "Projects"
+
+[chatQProjects]
+other = "Which projects has he worked on?"
+
+[chatChipPublications]
+other = "Publications"
+
+[chatQPublications]
+other = "What publications has he authored?"
+
+[chatChipContact]
+other = "Contact"
+
+[chatQContact]
+other = "How can I reach him?"

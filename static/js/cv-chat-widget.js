@@ -2,20 +2,65 @@ import { pipeline, cos_sim, env } from "https://cdn.jsdelivr.net/npm/@xenova/tra
 
 env.allowLocalModels = false;
 
-const CATEGORY_KEYWORDS = {
-  "İletişim": ["iletişim", "telefon", "e-posta", "eposta", "email", "mail", "linkedin", "github", "ulaş", "scholar", "medium"],
-  "Eğitim": ["eğitim", "okul", "üniversite", "lisans", "yüksek lisans", "mezun", "formasyon", "okuyor", "okudu"],
-  "Teknik Yetenekler": ["beceri", "yetenek", "teknoloji", "araç", "programlama dil", "hangi dil", "kullandığı dil", "hakim"],
-  "Mesleki Deneyim": ["deneyim", "iş yeri", "şirket", "firma", "kariyer", "staj", "işe girdi"],
-  "Projeler": ["proje", "geliştirdiği proje", "hangi projelerde"],
-  "Yayınlar": ["yayın", "makale", "publication", "dergi", "doi", "bilimsel"],
-  "Referans": ["referans", "danışman", "tavsiye mektubu"],
-  "Hakkımda": ["hakkında kim", "kimdir", "kendini tanıt", "biyografi"],
+const I18N = {
+  tr: {
+    kbUrl: "/data/cv-kb.tr.json",
+    locale: "tr-TR",
+    statusLoadingKb: "CV bilgi tabanı yükleniyor...",
+    statusLoadingModel: "Yapay zeka modeli tarayıcınıza indiriliyor (ilk seferde ~25MB, sonrasında önbellekten anında yüklenir)...",
+    statusAnalyzing: "CV içeriği analiz ediliyor...",
+    statusReady: "Hazır. Benimle ilgili bir soru sorabilirsin.",
+    statusError: "Model yüklenirken bir sorun oluştu. Sayfayı yenilemeyi deneyin.",
+    thinking: "Düşünüyorum...",
+    errorAnswer: "Bir hata oluştu, tekrar dener misin?",
+    noMatch: "Bu konuyla ilgili CV'de bir bilgi bulamadım. Eğitim, iş deneyimi, projeler, teknik beceriler, yayınlar veya iletişim hakkında soru sorabilirsin.",
+    categoryKeywords: {
+      "İletişim": ["iletişim", "telefon", "e-posta", "eposta", "email", "mail", "linkedin", "github", "ulaş", "scholar", "medium"],
+      "Eğitim": ["eğitim", "okul", "üniversite", "lisans", "yüksek lisans", "mezun", "formasyon", "okuyor", "okudu"],
+      "Teknik Yetenekler": ["beceri", "yetenek", "teknoloji", "araç", "programlama dil", "hangi dil", "kullandığı dil", "hakim"],
+      "Mesleki Deneyim": ["deneyim", "iş yeri", "şirket", "firma", "kariyer", "staj", "işe girdi"],
+      "Projeler": ["proje", "geliştirdiği proje", "hangi projelerde"],
+      "Yayınlar": ["yayın", "makale", "publication", "dergi", "doi", "bilimsel"],
+      "Referans": ["referans", "danışman", "tavsiye mektubu"],
+      "Hakkımda": ["hakkında kim", "kimdir", "kendini tanıt", "biyografi"],
+    },
+  },
+  en: {
+    kbUrl: "/data/cv-kb.en.json",
+    locale: "en-US",
+    statusLoadingKb: "Loading CV knowledge base...",
+    statusLoadingModel: "Downloading the AI model to your browser (about 25MB the first time, instant afterwards thanks to caching)...",
+    statusAnalyzing: "Analyzing CV content...",
+    statusReady: "Ready. Ask me anything about Fatih.",
+    statusError: "Something went wrong loading the model. Try refreshing the page.",
+    thinking: "Thinking...",
+    errorAnswer: "Something went wrong, want to try again?",
+    noMatch: "I couldn't find anything about that in the CV. Try asking about education, work experience, projects, technical skills, publications, or contact info.",
+    categoryKeywords: {
+      "Contact": ["contact", "phone", "email", "e-mail", "linkedin", "github", "reach", "scholar", "medium"],
+      "Education": ["education", "school", "university", "degree", "bachelor", "master", "graduate", "studying", "studied"],
+      "Technical Skills": ["skill", "technology", "tool", "programming language", "which language", "proficient"],
+      "Professional Experience": ["experience", "workplace", "company", "career", "internship", "worked at", "job"],
+      "Projects": ["project", "worked on", "which projects", "built"],
+      "Publications": ["publication", "paper", "article", "journal", "doi", "research"],
+      "References": ["reference", "advisor", "recommendation"],
+      "About": ["who is", "about him", "introduce", "biography"],
+    },
+  },
 };
 
+function detectLang() {
+  const widgetEl = document.getElementById("cv-chat-widget");
+  const lang = widgetEl?.dataset.lang;
+  return I18N[lang] ? lang : "en";
+}
+
+const LANG = detectLang();
+const T = I18N[LANG];
+
 function matchCategories(question) {
-  const q = question.toLocaleLowerCase("tr-TR");
-  return Object.entries(CATEGORY_KEYWORDS)
+  const q = question.toLocaleLowerCase(T.locale);
+  return Object.entries(T.categoryKeywords)
     .filter(([, keywords]) => keywords.some((k) => q.includes(k)))
     .map(([category]) => category);
 }
@@ -99,26 +144,26 @@ async function init() {
   if (initStarted) return;
   initStarted = true;
   try {
-    setStatus("CV bilgi tabanı yükleniyor...");
-    const res = await fetch("/data/cv-kb.json");
+    setStatus(T.statusLoadingKb);
+    const res = await fetch(T.kbUrl);
     kb = await res.json();
 
-    setStatus("Yapay zeka modeli tarayıcınıza indiriliyor (ilk seferde ~25MB, sonrasında önbellekten anında yüklenir)...");
+    setStatus(T.statusLoadingModel);
     extractor = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
 
-    setStatus("CV içeriği analiz ediliyor...");
+    setStatus(T.statusAnalyzing);
     kbEmbeddings = [];
     for (const item of kb) {
       kbEmbeddings.push(await embed(`${item.category}. ${item.text}`));
     }
 
-    setStatus("Hazır. Benimle ilgili bir soru sorabilirsin.");
+    setStatus(T.statusReady);
     inputEl.disabled = false;
     submitBtn.disabled = false;
     inputEl.focus();
   } catch (err) {
     console.error(err);
-    setStatus("Model yüklenirken bir sorun oluştu. Sayfayı yenilemeyi deneyin.");
+    setStatus(T.statusError);
   }
 }
 
@@ -126,7 +171,7 @@ async function answer(question) {
   const matchedCats = matchCategories(question);
 
   if (matchedCats.length === 0) {
-    return "Bu konuyla ilgili CV'de bir bilgi bulamadım. Eğitim, iş deneyimi, projeler, teknik beceriler, yayınlar veya iletişim hakkında soru sorabilirsin.";
+    return T.noMatch;
   }
 
   const qVec = await embed(question);
@@ -153,13 +198,13 @@ async function answer(question) {
 
 async function handleQuestion(question) {
   addMessage("user", question);
-  const pending = addMessage("bot", "Düşünüyorum...");
+  const pending = addMessage("bot", T.thinking);
   try {
     const reply = await answer(question);
     renderMessageContent(pending, reply);
   } catch (err) {
     console.error(err);
-    renderMessageContent(pending, "Bir hata oluştu, tekrar dener misin?");
+    renderMessageContent(pending, T.errorAnswer);
   }
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }

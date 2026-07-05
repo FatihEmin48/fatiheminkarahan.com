@@ -39,3 +39,45 @@ other = "E-posta Gönder"
 
 [viewOnMedium]
 other = "Medium'da tümünü gör"
+
+[chatToggleLabel]
+other = "Bana soru sor"
+
+[chatStarting]
+other = "Başlatılıyor..."
+
+[chatHeader]
+other = "Bana Sor"
+
+[chatClose]
+other = "Kapat"
+
+[chatPlaceholder]
+other = "Bir şey sor..."
+
+[chatSend]
+other = "Gönder"
+
+[chatChipEducation]
+other = "Eğitimi"
+
+[chatQEducation]
+other = "Hangi üniversitede okuyor?"
+
+[chatChipProjects]
+other = "Projeleri"
+
+[chatQProjects]
+other = "Hangi projelerde çalıştı?"
+
+[chatChipPublications]
+other = "Yayınları"
+
+[chatQPublications]
+other = "Yayınladığı makaleler neler?"
+
+[chatChipContact]
+other = "İletişim"
+
+[chatQContact]
+other = "Nasıl ulaşabilirim?"
