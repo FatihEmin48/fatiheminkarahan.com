@@ -1,7 +1,7 @@
 ---
-title: OkuAnla — Türkçe Belge Zekâsı
+title: OkuAnla Türkçe Belge Zekâsı
 ---
-Türkçe belgeleri OCR ile okuyup anlamlandıran bir web uygulaması — fatura, fiş ve kimlik gibi belgelerden varlık, özet, duygu ve yapısal alanları Türkçe NLP ile çıkarır. Hem görüntü hem PDF destekler.
+Türkçe belgeleri OCR ile okuyup anlamlandıran bir web uygulaması. Fatura, fiş ve kimlik gibi belgelerden varlık, özet, duygu ve yapısal alanları Türkçe NLP ile çıkarır. Hem görüntü hem PDF ile çalışır.
 
 <!--more-->
 
