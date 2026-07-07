@@ -1,7 +1,7 @@
 ---
 title: Hayatta Kalma
 ---
-Vampire Survivors tarzında, üstten görünümlü bir horde-survival tarayıcı oyunu. Otomatik saldıran silahlarla dalga dalga gelen düşmanlara karşı deneyim toplayıp seviye atlayarak mümkün olduğunca uzun süre hayatta kalmaya çalışıyorsun.
+Üstten görünümlü bir horde-survival tarayıcı oyunu. Otomatik saldıran silahlarla sonu gelmeyen düşman dalgalarına karşı deneyim toplayıp seviye atlıyorsun. Düşmanlar başta zayıf başlayıp zamanla ve senin seviye atlamanla birlikte güçleniyor, yani zorluk hep seninle birlikte artıyor. Masaüstünde klavyeyle, telefonda ekrandaki joystick ile oynanabilir.
 
 <!--more-->
 
