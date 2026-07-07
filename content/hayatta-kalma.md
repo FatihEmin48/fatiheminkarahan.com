@@ -1,7 +1,7 @@
 ---
 title: Hayatta Kalma
 ---
-A top-down horde-survival browser game in the Vampire Survivors style. Auto-attacking weapons fight off waves of enemies while you collect XP, level up, and try to survive as long as possible.
+A top-down horde-survival browser game. Auto-attacking weapons fight off endless waves of enemies while you collect XP and level up. Enemies start out weak and grow stronger over time and as you level up, so the challenge keeps pace with you. Playable on desktop with a keyboard, or on mobile with an on-screen joystick.
 
 <!--more-->
 
