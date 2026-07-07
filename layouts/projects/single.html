@@ -47,6 +47,21 @@
     </div>
   </section>
 
+  <section class="project-section">
+    <h2 class="section-heading">{{ i18n "gamesHeading" }}</h2>
+    <div class="project-grid">
+      {{ range slice "/hayatta-kalma" }}
+        {{ with $.Site.GetPage . }}
+        <article class="project-card">
+          <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
+          {{ .Summary }}
+          <a class="read-more" href="{{ .RelPermalink }}">{{ i18n "readMore" }} &rarr;</a>
+        </article>
+        {{ end }}
+      {{ end }}
+    </div>
+  </section>
+
   {{ $enSite := .Site }}
   {{ range hugo.Sites }}{{ if eq .Language.Lang "en" }}{{ $enSite = . }}{{ end }}{{ end }}
   <section class="project-section">

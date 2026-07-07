@@ -37,6 +37,9 @@ other = "Tools"
 [legacyProjectsHeading]
 other = "Earlier Projects"
 
+[gamesHeading]
+other = "Games"
+
 [sendEmail]
 other = "Send Email"
 
