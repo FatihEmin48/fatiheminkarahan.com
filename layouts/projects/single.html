@@ -50,7 +50,7 @@
   <section class="project-section">
     <h2 class="section-heading">{{ i18n "gamesHeading" }}</h2>
     <div class="project-grid">
-      {{ range slice "/hayatta-kalma" "/altin-madeni" "/ciftlik" }}
+      {{ range slice "/hayatta-kalma" "/altin-madeni" "/ciftlik" "/zipla" }}
         {{ with $.Site.GetPage . }}
         <article class="project-card">
           <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
