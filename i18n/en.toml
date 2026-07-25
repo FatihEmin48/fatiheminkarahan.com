@@ -129,3 +129,6 @@ other = "object(s) detected."
 
 [tomatoNoObjectsDetected]
 other = "No tomatoes detected."
+
+[appsHeading]
+other = "Apps"
