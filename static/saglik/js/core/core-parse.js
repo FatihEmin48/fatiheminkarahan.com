@@ -23,14 +23,14 @@ const METRICS = [
   {
     key: 'stand_hours',
     kind: 'int',
-    labels: ['ayakta', 'stand', 'ayakta durma'],
+    labels: ['ayakta', 'stand', 'ayakta durma', 'durus', 'ayakta durma saati'],
     units: ['sa', 'saat', 'hrs', 'hr', 'hour', 'hours'],
     range: [0, 24],
   },
   {
     key: 'steps',
     kind: 'int',
-    labels: ['adim', 'adim sayisi', 'steps', 'step count'],
+    labels: ['adim', 'adim sayisi', 'steps', 'step count', 'adim sayisi bugun'],
     units: ['adim', 'steps'],
     range: [0, 200000],
   },
@@ -38,7 +38,7 @@ const METRICS = [
     key: 'distance_km',
     kind: 'float',
     labels: ['mesafe', 'distance', 'yurume + kosu mesafesi', 'walking + running distance',
-      'yurume ve kosu mesafesi'],
+      'yurume ve kosu mesafesi', 'adim mes', 'adim mesafesi', 'walking distance'],
     units: ['km', 'kilometre', 'mi', 'mil', 'miles'],
     range: [0, 500],
   },
@@ -93,6 +93,7 @@ export function parseFitnessText(raw) {
 
   const values = {};
   const hits = {};
+  const used = new Set();      // değeri alınan satırlar (ikinci geçişte tekrar kullanılmasın)
 
   const setValue = (key, value, line, range) => {
     if (value == null) return;
@@ -118,15 +119,26 @@ export function parseFitnessText(raw) {
       let nums = numbersIn(line, m.kind);
       let src = line;
 
-      // 2) yoksa sonraki iki satıra bak (Fitness'ta etiket ve değer ayrı satırda olabilir)
-      for (let j = 1; j <= 2 && !nums.length && i + j < lines.length; j++) {
+      // 2) yoksa sonraki satırlara bak: OCR etiketi ve değeri ayrı satırlara,
+      //    hatta araya "Bugün" gibi satırlar koyarak verebiliyor.
+      let srcIndex = i;
+      for (let j = 1; j <= 5 && !nums.length && i + j < lines.length; j++) {
         const nextLine = lines[i + j];
-        // sonraki satır başka bir ölçütün etiketiyse atla
         const nf2 = fold(nextLine);
-        const otherLabel = METRICS.some((o) => o.key !== m.key && o.labels.some((l) => nf2.includes(l)));
+        // Başka bir ölçütün etiketine geldiysek dur — ama o etiket bu ölçütünkini de
+        // içeriyorsa (ör. "Adım Sayısı" ve "Adım Mes...") durmak yerine devam et.
+        const otherLabel = METRICS.some((o) => o.key !== m.key
+          && o.labels.some((l) => nf2.includes(l))
+          && !m.labels.some((l) => nf2.includes(l) && l.length > 3));
         if (otherLabel) break;
-        nums = numbersIn(nextLine, m.kind);
+        // "Bugün", "Today", ">" gibi ara satırları atla
+        if (!/\d/.test(nextLine)) continue;
+        const cand = numbersIn(nextLine, m.kind);
+        // aralık dışı değer bu ölçüte ait değildir; aramayı sürdür
+        if (cand.length && (cand[0].value < m.range[0] || cand[0].value > m.range[1])) continue;
+        nums = cand;
         src = nextLine;
+        srcIndex = i + j;
       }
       if (!nums.length) continue;
 
@@ -145,6 +157,29 @@ export function parseFitnessText(raw) {
       if (m.kind === 'int') value = Math.round(value);
 
       setValue(m.key, value, src, m.range);
+      if (values[m.key] != null) used.add(srcIndex);
+    }
+  }
+
+  // İkinci geçiş: OCR satırları karıştığında "12.923" gibi tek başına kalan sayı
+  // neredeyse her zaman adım sayısıdır. Etiketi görülmüş ama değeri bulunamamışsa kurtar.
+  if (values.steps == null) {
+    const sawStepLabel = lines.some((l) => {
+      const f2 = fold(l);
+      return ['adim sayisi', 'adim', 'steps'].some((k) => f2.includes(k));
+    });
+    if (sawStepLabel) {
+      for (let i = 0; i < lines.length; i++) {
+        if (used.has(i)) continue;
+        const line = lines[i];
+        if (!/^[\d][\d.,\s]*$/.test(line)) continue;          // yalnız sayıdan ibaret satır
+        const v = parseNum(line, 'int');
+        if (v == null || v < 500 || v > 200000) continue;
+        values.steps = Math.round(v);
+        hits.steps = line;
+        used.add(i);
+        break;
+      }
     }
   }
 
@@ -170,7 +205,7 @@ export function parseFitnessText(raw) {
  * Tartı fotoğrafı / metni → kilogram.
  * "78,4" · "78.4 kg" · "078.4" · "kg 78,4" biçimlerini yakalar; makul aralık: 25-400.
  */
-export function parseWeightText(raw, { min = 25, max = 400, hint = null } = {}) {
+export function parseWeightText(raw, { min = 25, max = 400, hint = null, strict = false } = {}) {
   const text = String(raw || '');
   const cands = [];
 
@@ -178,24 +213,33 @@ export function parseWeightText(raw, { min = 25, max = 400, hint = null } = {}) 
   let m;
   while ((m = re.exec(text))) {
     const whole = Number(m[1]);
-    const frac = m[2] ? Number(m[2]) : 0;
+    const hasDec = !!m[2];
+    const frac = hasDec ? Number(m[2]) : 0;
     let v = whole + frac / 10;
     // "784" gibi ayırıcısı okunmamış değerler: 78,4 olarak yorumla
     if (v > max && v >= 250 && v <= 4000) v = Number((v / 10).toFixed(1));
     if (v < min || v > max) continue;
     const near = /kg|kilo/i.test(text.slice(Math.max(0, m.index - 6), m.index + m[0].length + 6));
-    cands.push({ value: Number(v.toFixed(1)), score: (near ? 2 : 0) + (m[2] ? 1 : 0) });
+    cands.push({ value: Number(v.toFixed(1)), near, dec: hasDec, score: (near ? 2 : 0) + (hasDec ? 1 : 0) });
   }
 
   if (!cands.length) return null;
 
-  // ipucu (son bilinen kilo) varsa ona en yakın olanı seç
-  if (hint != null) {
-    cands.sort((a, b) => Math.abs(a.value - hint) - Math.abs(b.value - hint) || b.score - a.score);
-  } else {
-    cands.sort((a, b) => b.score - a.score || b.value - a.value);
+  // Fotoğraftan okumada gürültü çok: yalnız inandırıcı adayları kabul et.
+  let list = cands;
+  if (strict) {
+    list = cands.filter((c) => c.dec || c.near);
+    if (hint != null) list = list.filter((c) => Math.abs(c.value - hint) <= 20);
+    else list = list.filter((c) => c.value >= 30 && c.value <= 250);
+    if (!list.length) return null;
   }
-  return cands[0].value;
+
+  if (hint != null) {
+    list.sort((a, b) => Math.abs(a.value - hint) - Math.abs(b.value - hint) || b.score - a.score);
+  } else {
+    list.sort((a, b) => b.score - a.score || b.value - a.value);
+  }
+  return list[0].value;
 }
 
 /** Kullanıcının elle girdiği kiloyu temizler ("78,4 kg" → 78.4) */

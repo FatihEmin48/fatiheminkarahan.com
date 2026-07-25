@@ -10,7 +10,9 @@ import {
   setCloudConfig, clearCloudConfig, testCloudConfig,
 } from './core/config.js';
 import { barChart, lineChart, sparkline } from './charts.js';
-import { recognizeImage } from './ocr-web.js';
+import { recognizeImage, recognizeRotations, recognizeArea } from './ocr-web.js';
+import { buildSummary, localAssessment, buildPrompt } from './core/core-coach.js';
+import { hasAiKey, getAiKey, setAiKey, clearAiKey, askAi } from './ai.js';
 
 const $ = (id) => document.getElementById(id);
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -34,10 +36,10 @@ const METRICS = [
 ];
 
 const SOURCE_LABEL = {
-  shortcut: 'iPhone Kısayolu ile geldi',
-  screenshot: 'Ekran görüntüsünden okundu',
+  shortcut: 'Otomatik alındı',
+  screenshot: 'Görselden okundu',
   manual: 'Elle girildi',
-  healthconnect: 'Telefon sensöründen alındı',
+  healthconnect: 'Telefondan alındı',
   import: 'Dışarıdan aktarıldı',
 };
 
@@ -264,24 +266,9 @@ function renderToday() {
     grid.appendChild(box);
   }
 
-  // kısayol tuşu / ipucu ortama göre
+  // ipucu satırı: native taraf (telefondan veri) kendi metnini yazar
   const hint = $('shortcut-hint');
-  hint.hidden = false;
-  if (isAndroidApp()) {
-    // Android uygulamasında iPhone kısayolu çalıştırılamaz
-    $('btn-shortcut').hidden = true;
-    hint.innerHTML = 'iPhone verileri, web panelinden kurduğun kısayolla buluta düşer ve '
-      + 'burada kendiliğinden görünür. <b>Telefondan çek</b> ise bu telefonun kendi '
-      + 'adım verisini (Health Connect) okur.';
-  } else if (isIOS) {
-    $('btn-shortcut').hidden = false;
-    hint.innerHTML = `Kısayol adı: <b>${esc(CONFIG.shortcutName)}</b>. `
-      + 'Henüz kurmadıysan Ayarlar → “iPhone kısayolunu kur” adımlarını izle.';
-  } else {
-    $('btn-shortcut').hidden = false;
-    hint.innerHTML = 'Kısayol tuşu yalnız iPhone/iPad\'de çalışır. '
-      + 'Bilgisayarda "Elle gir" ya da "Ekran görüntüsü" yolunu kullan.';
-  }
+  if (!hint.dataset.custom) hint.hidden = true;
 
   renderWeightCard();
   renderMissing();
@@ -354,10 +341,11 @@ function renderUploads() {
   if (!cloudOn() || !uploads.length) { card.hidden = true; return; }
   card.hidden = false;
   const pend = uploads.filter((u) => u.status === 'pending').length;
-  $('uploads-pill').textContent = pend ? `${pend} bekliyor` : 'güncel';
+  $('uploads-pill').textContent = pend ? `${pend} bekliyor`
+    : (uploads.length > 3 ? `${uploads.length} kayıt` : 'güncel');
   const list = $('upload-list');
   list.innerHTML = '';
-  for (const u of uploads.slice(0, 6)) {
+  for (const u of uploads.slice(0, 3)) {
     const row = el('li', 'upload-row');
     const when = u.day ? U.relativeDay(u.day) : new Date(u.created_at).toLocaleDateString('tr-TR');
     const kind = u.kind === 'scale' ? 'tartı' : 'fitness';
@@ -372,20 +360,41 @@ function renderUploads() {
   const note = $('uploads-note');
   note.innerHTML = '';
   if (pend) {
-    note.textContent = window.SaglikNative
-      ? 'Bekleyen görüntüler bu cihazda (ML Kit ile) okunacak — “Şimdi oku”ya dokun.'
-      : '“Şimdi oku”ya dokun: görüntüler bu tarayıcıda okunur. İlk okumada metin tanıma '
-        + 'bileşeni indirilir (bir kerelik, ~2 MB).';
+    note.textContent = '“Şimdi oku”ya dokun: bekleyen görüntüler bu cihazda okunur.';
   } else if (failed.length) {
     note.textContent = `Okunamayan ${failed.length} görüntü var: ${esc(failed[0].error || '')}`;
   }
 
-  const actions = el('div', 'action-row');
+  // önceki çizimden kalan düğme satırlarını temizle (yoksa her render'da çoğalır)
+  for (const old of card.querySelectorAll('.upload-actions')) old.remove();
+  const actions = el('div', 'action-row upload-actions');
   actions.style.marginTop = '10px';
   if (pend) {
     const now = el('button', 'btn-primary', 'Şimdi oku');
     now.onclick = () => readPendingNow();
     actions.appendChild(now);
+  }
+  const clearable = uploads.filter((u) => u.status !== 'pending');
+  if (clearable.length) {
+    const clr = el('button', 'btn-ghost', `Listeyi temizle (${clearable.length})`);
+    clr.onclick = async () => {
+      busy('Temizleniyor…');
+      let removed = 0;
+      try {
+        for (const u of clearable) {
+          try { await api.deleteImage(u.path); } catch (e) { /* dosya yoksa sorun değil */ }
+        }
+        await api.remove('sp_uploads', 'status=neq.pending');
+        removed = clearable.length;
+        await loadUploads();
+      } catch (e) {
+        toast(e.message || 'Temizlenemedi', { error: true });
+      }
+      unbusy();
+      render();
+      if (removed) toast(`${removed} kayıt ve görsel silindi`);
+    };
+    actions.appendChild(clr);
   }
   if (failed.length) {
     const retry = el('button', 'btn-ghost', `Tekrar dene (${failed.length})`);
@@ -519,6 +528,7 @@ function renderAnalysis() {
       wr.etaWeeks ? `bu hızla ~${wr.etaWeeks} hafta` : (wr.toTarget != null ? `${U.nf(Math.abs(wr.toTarget), 1)} kg kaldı` : ''));
   }
 
+  renderCoachCard();
   renderDayList();
 }
 
@@ -643,8 +653,8 @@ function manualSheet(key) {
 function pasteSheet(key = U.today(), prefill = '') {
   const box = el('div');
   box.appendChild(el('p', 'muted small',
-    'iPhone\'da Fotoğraflar uygulamasında ekran görüntüsüne bas, metni seç ve <b>Kopyala</b>ya dokun '
-    + '(Canlı Metin). Sonra buraya yapıştır — sayılar kendiliğinden ayrıştırılır.'));
+    'Görseldeki yazıyı kopyalayıp buraya yapıştır — sayılar kendiliğinden ayrıştırılır. '
+    + '(Telefonda fotoğrafa uzun basıp metni seçebilirsin.)'));
 
   const ta = document.createElement('textarea');
   ta.rows = 7;
@@ -709,9 +719,132 @@ function pasteSheet(key = U.today(), prefill = '') {
   setTimeout(() => ta.focus(), 120);
 }
 
+/* ================= tartı fotoğrafı ================= */
+
+/**
+ * Tartı fotoğrafını okur. Fotoğraf yan çekilmişse görsel döndürülerek yeniden denenir.
+ * Sonuç her zaman onaya sunulur — yanlış okuma sessizce kaydedilmesin.
+ */
+async function readScalePhoto(file) {
+  const wr = A.weightReport(S.state.weights, S.profile());
+  const hint = wr.empty ? null : wr.latest.kg;
+
+  busy('Tartı okunuyor…');
+  let found = null;
+  let text = '';
+  try {
+    const res = await recognizeRotations(
+      file,
+      (raw) => P.parseWeightText(P.cleanText(raw), { hint, strict: true }),
+      (pct, durum) => { $('busy-text').textContent = `${durum}… %${Math.round(pct)}`; },
+    );
+    found = res.value;
+    text = P.cleanText(res.text);
+  } catch (err) {
+    /* aşağıda elle girişe düşülür */
+  }
+  unbusy();
+  weightConfirmSheet(found, { file, text });
+}
+
+function weightConfirmSheet(kgVal, { file = null, text = '' } = {}) {
+  const due = A.weighDueDay(S.profile(), U.today());
+  const box = el('div');
+
+  if (file) {
+    const wrap = el('div');
+    Object.assign(wrap.style, {
+      borderRadius: '14px', overflow: 'hidden', border: '1px solid var(--line)',
+      background: 'var(--card-2)', display: 'grid', placeItems: 'center', maxHeight: '26vh',
+    });
+    const img = document.createElement('img');
+    img.alt = 'Tartı fotoğrafı — sayının olduğu yere dokun';
+    Object.assign(img.style, { width: '100%', maxHeight: '26vh', objectFit: 'contain', cursor: 'crosshair' });
+    img.src = URL.createObjectURL(file);
+    img.onclick = async (ev) => {
+      const r = img.getBoundingClientRect();
+      // görüntü "contain" ile yerleştiği için gerçek resim alanını hesapla
+      const ar = (img.naturalWidth || 1) / (img.naturalHeight || 1);
+      const boxAr = r.width / r.height;
+      let dw = r.width;
+      let dh = r.height;
+      if (ar > boxAr) dh = r.width / ar; else dw = r.height * ar;
+      const ox = (r.width - dw) / 2;
+      const oy = (r.height - dh) / 2;
+      const rel = {
+        x: (ev.clientX - r.left - ox) / dw,
+        y: (ev.clientY - r.top - oy) / dh,
+      };
+      if (rel.x < 0 || rel.x > 1 || rel.y < 0 || rel.y > 1) return;
+
+      busy('Seçilen bölge okunuyor…');
+      const wr2 = A.weightReport(S.state.weights, S.profile());
+      let res = null;
+      try {
+        res = await recognizeArea(file, rel,
+          (raw) => P.parseWeightText(P.cleanText(raw), { hint: wr2.empty ? null : wr2.latest.kg, strict: true }),
+          (pct, durum) => { $('busy-text').textContent = `${durum}… %${Math.round(pct)}`; });
+      } catch (e) { /* aşağıda bildirilir */ }
+      unbusy();
+      if (res?.value != null) {
+        input.value = String(res.value).replace('.', ',');
+        toast(`Okunan: <b>${U.nf(res.value, 1)} kg</b> — doğruysa kaydet`);
+      } else {
+        toast('Orada da okunamadı — kiloyu elle yazabilirsin', { error: true });
+        input.focus();
+      }
+    };
+    wrap.appendChild(img);
+    box.appendChild(wrap);
+    box.appendChild(el('p', 'muted small',
+      'İpucu: sayının olduğu yere <b>dokun</b>, orayı büyütüp yeniden okuyayım.'));
+  }
+
+  box.appendChild(el('p', 'muted small', kgVal == null
+    ? 'Tartıdaki sayı okunamadı (fotoğraf yan ya da parlak olabilir). Kiloyu buraya yazabilirsin.'
+    : `Okunan değer: <b>${U.nf(kgVal, 1)} kg</b>. Doğruysa kaydet, değilse düzelt.`));
+
+  const field = el('label', 'field');
+  field.style.marginTop = '10px';
+  field.innerHTML = `<span>${esc(U.relativeDay(due))} · kilo (kg)</span>`;
+  const input = el('input');
+  input.type = 'text';
+  input.inputMode = 'decimal';
+  input.value = kgVal == null ? '' : String(kgVal).replace('.', ',');
+  input.placeholder = 'örn. 82,4';
+  field.appendChild(input);
+  box.appendChild(field);
+
+  const save = el('button', 'btn-primary wide', 'Kaydet');
+  save.onclick = async () => {
+    const v = P.normalizeWeightInput(input.value);
+    if (v == null) { toast('Kiloyu 25–400 arası yaz (ör. 82,4)', { error: true }); return; }
+    S.setWeight(due, { kg: v, source: kgVal != null && v === kgVal ? 'photo' : 'manual' });
+    closeSheet();
+    render();
+    toast(`${U.relativeDay(due)} için <b>${U.nf(v, 1)} kg</b> kaydedildi`);
+    if (cloudOn()) { try { await S.push(api); } catch (e) { /* sonra */ } }
+  };
+  box.appendChild(save);
+
+  if (text) {
+    const det = document.createElement('details');
+    det.style.marginTop = '12px';
+    const sum = document.createElement('summary');
+    sum.textContent = 'Fotoğraftan okunan metin';
+    sum.style.cssText = 'color:var(--text-faint);font-size:.82rem;cursor:pointer';
+    det.appendChild(sum);
+    det.appendChild(el('div', 'copybox', esc(text.slice(0, 400)) || '—'));
+    box.appendChild(det);
+  }
+
+  openSheet('Tartı', box);
+  setTimeout(() => { if (kgVal == null) input.focus(); }, 150);
+}
+
 /* ================= bekleyen yüklemeleri bu cihazda oku ================= */
 
-/** Android'de native ML Kit, web'de tarayıcı OCR'ı kullanılır. */
+/** Uygulama içinde native metin tanıma, tarayıcıda web OCR kullanılır. */
 async function readPendingNow() {
   if (window.SaglikNative?.processUploads) {
     busy('Görüntüler okunuyor…');
@@ -747,7 +880,7 @@ async function processPendingInBrowser({ quiet = false } = {}) {
 
       if (up.kind === 'scale') {
         const wr = A.weightReport(S.state.weights, S.profile());
-        const kgVal = P.parseWeightText(text, { hint: wr.empty ? null : wr.latest.kg });
+        const kgVal = P.parseWeightText(text, { hint: wr.empty ? null : wr.latest.kg, strict: true });
         if (kgVal == null) {
           await api.markUpload(up.id, {
             status: 'failed', ocr_text: text.slice(0, 2000), error: 'Tartıdaki sayı okunamadı',
@@ -847,7 +980,7 @@ function screenshotSheet(file, key = U.today()) {
 
   let uploadBtn = null;
   if (cloudOn()) {
-    uploadBtn = el('button', 'set-action', 'Görseli yükle (Android uygulaması okusun)');
+    uploadBtn = el('button', 'set-action', 'Sonra okumak üzere buluta kaydet');
     uploadBtn.style.marginTop = '12px';
     uploadBtn.onclick = () => { closeSheet(); uploadImage(file, 'fitness'); };
     box.appendChild(uploadBtn);
@@ -938,7 +1071,7 @@ async function uploadImage(file, kind) {
     await loadUploads();
     unbusy();
     render();
-    toast('Yüklendi — Android uygulamasında okunacak');
+    toast('Yüklendi — “Şimdi oku” ile işleyebilirsin');
   } catch (err) {
     unbusy();
     toast(err.message || 'Yüklenemedi', { error: true });
@@ -1034,12 +1167,12 @@ function conflictSheet(conflict, { source = 'screenshot', label = 'Yeni okuma' }
   openSheet('Hangisi doğru?', box);
 }
 
-/* ================= URL ile veri alma (iPhone kısayolu) =================
-   Kısayol iki biçimde veri verebilir:
+/* ================= URL ile veri alma (dış otomasyon) =================
+   Dış otomasyon iki biçimde veri verebilir:
      .../saglik/#adim=8432&mesafe=6.1&kalori=455&egzersiz=32&ayakta=11&gun=2026-07-25
      .../saglik/#ocr=<Görüntüden Çıkarılan Metin>&gun=2026-07-25
-   İkincisi Apple'ın kendi metin tanımasını kullanır: ekran görüntüsü iPhone'da okunur,
-   sayıları bizim ayrıştırıcı çıkarır. Bulut gerekmez; çevrimdışı da çalışır. */
+   Arayüzde görünmez; dışarıdan otomasyon kurmak isteyen için sessiz bir giriş kapısıdır.
+   Bulut gerekmez, çevrimdışı da çalışır. */
 
 const HASH_FIELDS = {
   adim: ['steps', 'int'],
@@ -1074,7 +1207,7 @@ async function handleHashIngest() {
   }
   if (Object.keys(direct).length) {
     const ok = await applyOrAsk(day, P.toActivityPatch(direct),
-      { source: 'shortcut', label: 'iPhone kısayolu' });
+      { source: 'shortcut', label: 'otomatik gönderim' });
     if (ok) notes.push(`${U.relativeDay(day)}: ${Object.keys(direct).length} değer kaydedildi`);
   }
 
@@ -1087,7 +1220,7 @@ async function handleHashIngest() {
     }
   }
 
-  // 3) ekran görüntüsünden çıkarılmış metin (Apple Canlı Metin / Kısayol OCR)
+  // 3) dışarıda çıkarılmış metin (cihazın kendi metin tanıması)
   const ocr = p.get('ocr') || p.get('metin');
   if (ocr) {
     const parsed = P.parseFitnessText(ocr);
@@ -1098,7 +1231,7 @@ async function handleHashIngest() {
       return true;
     }
     const ok = await applyOrAsk(day, P.toActivityPatch(parsed.values),
-      { source: 'screenshot', label: 'iPhone ekran görüntüsü' });
+      { source: 'screenshot', label: 'görselden okuma' });
     if (ok) notes.push(`ekran görüntüsünden ${Object.keys(parsed.values).length} değer okundu`);
   }
 
@@ -1109,6 +1242,105 @@ async function handleHashIngest() {
   toast(notes.join(' · '), { ms: 3200 });
   if (cloudOn()) { try { await S.push(api); } catch (e) { /* sonra eşitlenir */ } }
   return true;
+}
+
+/* ================= değerlendirme (kurallı + isteğe bağlı yapay zekâ) ================= */
+
+let coachBusy = false;
+
+function renderCoachCard() {
+  const pill = $('coach-mode');
+  if (pill) pill.textContent = hasAiKey() ? 'yapay zekâ açık' : 'cihazda';
+}
+
+async function runCoach() {
+  if (coachBusy) return;
+  coachBusy = true;
+  const out = $('coach-text');
+  const btn = $('coach-run');
+  const summary = buildSummary(S.state.days, S.state.weights, S.profile());
+  const local = localAssessment(summary);
+
+  if (!hasAiKey()) {
+    out.textContent = local;
+    coachBusy = false;
+    return;
+  }
+
+  btn.disabled = true;
+  out.textContent = 'Yapay zekâ değerlendiriyor…';
+  try {
+    const text = await askAi(buildPrompt(summary));
+    out.innerHTML = esc(text).replace(/\n/g, '<br>');
+  } catch (e) {
+    out.innerHTML = `${esc(local)}<br><br><span style="color:var(--danger)">`
+      + `Yapay zekâ yanıt vermedi: ${esc(e.message || 'bilinmeyen hata')}</span>`;
+  } finally {
+    btn.disabled = false;
+    coachBusy = false;
+  }
+}
+
+function aiSheet() {
+  const box = el('div');
+  box.appendChild(el('p', 'muted small',
+    'Değerlendirmeyi yapay zekâ yazsın istersen ücretsiz bir anahtar ekleyebilirsin. '
+    + 'Anahtar yalnız bu cihazda saklanır; gönderilen bilgi yalnızca özet sayılardır '
+    + '(ad, e-posta, görsel gönderilmez).'));
+
+  const f = el('label', 'field');
+  f.style.marginTop = '10px';
+  f.innerHTML = '<span>Anahtar</span>';
+  const input = el('input');
+  input.type = 'text';
+  input.placeholder = 'AI... ile başlayan anahtar';
+  input.value = getAiKey();
+  input.autocapitalize = 'off';
+  input.spellcheck = false;
+  f.appendChild(input);
+  box.appendChild(f);
+
+  const msg = el('p', 'muted small');
+  box.appendChild(msg);
+
+  const save = el('button', 'btn-primary wide', 'Kaydet ve dene');
+  save.onclick = async () => {
+    save.disabled = true;
+    msg.textContent = 'Deneniyor…';
+    try {
+      setAiKey(input.value);
+      await askAi('Yalnızca "tamam" yaz.');
+      msg.innerHTML = '<b>Çalışıyor.</b> Analiz sayfasındaki “Değerlendir” artık yapay zekâ kullanacak.';
+      renderCoachCard();
+      setTimeout(closeSheet, 900);
+    } catch (e) {
+      clearAiKey();
+      msg.innerHTML = `<span style="color:var(--danger)">${esc(e.message || 'Olmadı')}</span>`;
+    }
+    save.disabled = false;
+  };
+  box.appendChild(save);
+
+  const help = el('button', 'btn-ghost wide', 'Ücretsiz anahtar nasıl alınır?');
+  help.style.marginTop = '8px';
+  help.onclick = () => {
+    window.open('https://aistudio.google.com/apikey', '_blank', 'noopener');
+  };
+  box.appendChild(help);
+
+  if (hasAiKey()) {
+    const rm = el('button', 'set-action danger', 'Anahtarı kaldır');
+    rm.style.marginTop = '12px';
+    rm.onclick = () => {
+      clearAiKey();
+      renderCoachCard();
+      closeSheet();
+      toast('Yapay zekâ kapatıldı — değerlendirme cihazda yazılacak');
+    };
+    box.appendChild(rm);
+  }
+
+  openSheet('Yapay zekâ değerlendirmesi', box);
 }
 
 /* ================= bulut bağlantısı ================= */
@@ -1239,8 +1471,8 @@ function settingsSheet() {
   b1.appendChild(wTimeRow);
   g1.appendChild(b1);
   g1.appendChild(el('p', 'about',
-    'Bildirimler <b>Android uygulaması</b> ve <b>iPhone kısayol otomasyonu</b> tarafından gönderilir; '
-    + 'saatler burada tutulur, iki taraf da bu ayarı kullanır.'));
+    'Bu saatler cihazına bildirim kurabilen sürümde kullanılır; ayar hesabınla birlikte '
+    + 'taşınır, her cihazda ayrı ayrı girmen gerekmez.'));
   box.appendChild(g1);
 
   /* hedefler */
@@ -1279,22 +1511,23 @@ function settingsSheet() {
   gc.appendChild(el('p', 'about', isCloudEnabled()
     ? `Bağlı: <b>${esc(CONFIG.url.replace('https://', ''))}</b>`
       + `${cloudOn() ? ` · giriş: ${esc(api.email || '')}` : ' · henüz giriş yapılmadı'}`
-    : 'Bağlı değil — veriler yalnız bu cihazda. Bağlarsan iPhone kısayolu ve '
-      + 'cihazlar arası eşitleme açılır.'));
+    : 'Bağlı değil — veriler yalnız bu cihazda. Bağlarsan cihazlar arası eşitleme açılır.'));
   box.appendChild(gc);
 
-  /* iPhone */
-  const g3 = el('div', 'set-group');
-  g3.appendChild(el('div', 'set-title', 'iPhone bağlantısı'));
-  const b3 = el('div', 'set-box');
-  const wiz = el('button', 'set-action', 'iPhone kısayolunu kur (adım adım)');
-  wiz.onclick = shortcutWizard;
-  b3.appendChild(wiz);
-  const pasteAct = el('button', 'set-action', 'Ekran görüntüsü metnini yapıştır');
-  pasteAct.onclick = () => pasteSheet(U.today());
-  b3.appendChild(pasteAct);
-  g3.appendChild(b3);
-  box.appendChild(g3);
+  /* değerlendirme */
+  const gAi = el('div', 'set-group');
+  gAi.appendChild(el('div', 'set-title', 'Değerlendirme'));
+  const bAi = el('div', 'set-box');
+  const aiBtn = el('button', 'set-action',
+    hasAiKey() ? 'Yapay zekâ anahtarını değiştir' : 'Yapay zekâ değerlendirmesini aç (ücretsiz)');
+  aiBtn.onclick = aiSheet;
+  bAi.appendChild(aiBtn);
+  gAi.appendChild(bAi);
+  gAi.appendChild(el('p', 'about', hasAiKey()
+    ? 'Açık: “Değerlendir” dediğinde yorumu yapay zekâ yazar. Anahtar yalnız bu cihazda durur.'
+    : 'Kapalı: değerlendirme cihazında, kurallara göre yazılır. İstersen ücretsiz bir '
+      + 'yapay zekâ anahtarı ekleyip daha ayrıntılı yorum alabilirsin.'));
+  box.appendChild(gAi);
 
   /* görünüm */
   const g4 = el('div', 'set-group');
@@ -1370,149 +1603,6 @@ function settingsSheet() {
   openSheet('Ayarlar', box);
 }
 
-/* ================= kısayol sihirbazı ================= */
-
-function shortcutWizard() {
-  const p = S.profile();
-  const token = p.ingest_token;
-  const box = el('div');
-  const base = (CONFIG.webUrl || location.origin + location.pathname).replace(/\/+$/, '') + '/';
-
-  box.appendChild(el('p', 'muted small',
-    `Panelin <b>iPhone'dan veri çek</b> tuşu, telefonundaki <b>${esc(CONFIG.shortcutName)}</b> `
-    + 'adlı kısayolu çalıştırır. Kısayol yoksa “bulunamadı” der — bir kez kurman yeterli. '
-    + 'İki yol var: <b>A</b> daha kolay, <b>B</b> arka planda kendiliğinden çalışır.'));
-
-  const copyRow = (title, value, note) => {
-    const g = el('div', 'set-group');
-    g.appendChild(el('div', 'set-title', title));
-    g.appendChild(el('div', 'copybox', esc(value)));
-    if (note) g.appendChild(el('p', 'muted small', note));
-    const btn = el('button', 'btn-ghost wide', 'Kopyala');
-    btn.style.marginTop = '6px';
-    btn.onclick = () => copyText(value, 'Kopyalandı');
-    g.appendChild(btn);
-    box.appendChild(g);
-  };
-
-  /* ---------- A: kolay yol ---------- */
-  const gA = el('div', 'set-group');
-  gA.appendChild(el('div', 'set-title', 'A · Kolay yol (anahtar gerekmez)'));
-  const listA = el('ol', 'steps-list');
-  const stepsA = [
-    'Kısayollar uygulamasını aç → sağ üstte <b>+</b>.',
-    `Üstteki ada dokunup adını <b>${esc(CONFIG.shortcutName)}</b> yap (birebir aynı olmalı).`,
-    '<b>Sağlık Örneklerini Bul</b> ekle → Tür: <b>Adımlar</b>, Filtre: <b>Başlangıç Tarihi bugün</b>. '
-      + 'Altına <b>İstatistik Hesapla</b> → <b>Toplam</b> ekle. Sonuca uzun basıp '
-      + '<b>Değişkene Ata</b> → adı: <b>adim</b>.',
-    'Aynı üçlüyü tekrarla: <b>Aktif Enerji</b> → <b>kalori</b>, '
-      + '<b>Egzersiz Dakikası</b> → <b>egzersiz</b>, <b>Yürüme + Koşu Mesafesi</b> → <b>mesafe</b>.',
-    '<b>URL’leri Aç</b> (Open URLs) ekle ve aşağıdaki adresi yapıştır. Sonra '
-      + '<b>ADIM / KALORI / EGZERSIZ / MESAFE</b> yazan yerleri silip yerlerine ilgili '
-      + '<b>değişkeni</b> sürükle.',
-    'Kısayolu bir kez çalıştır → Sağlık izni isterse <b>İzin Ver</b>. Panel açılır, o günün '
-      + 'verileri kaydedilir. Artık paneldeki <b>iPhone’dan veri çek</b> tuşu bunu çağırır.',
-  ];
-  for (const it of stepsA) listA.appendChild(el('li', null, it));
-  gA.appendChild(listA);
-  box.appendChild(gA);
-
-  copyRow('A · Kısayola yapıştırılacak adres',
-    `${base}#adim=ADIM&kalori=KALORI&egzersiz=EGZERSIZ&mesafe=MESAFE`,
-    'Büyük harfli yerlere Kısayollar’daki değişkenleri sürükle. Ayakta saatini de eklemek '
-    + 'istersen sonuna &ayakta=AYAKTA yaz.');
-
-  /* ---------- B: otomatik yol ---------- */
-  const gB = el('div', 'set-group');
-  gB.appendChild(el('div', 'set-title', 'B · Otomatik yol (arka planda, panel açılmadan)'));
-  if (!cloudOn()) {
-    gB.appendChild(el('p', 'muted small',
-      'Bu yol için hesabınla giriş yapmış olman gerekir — veriler doğrudan hesabına yazılır.'));
-    box.appendChild(gB);
-  } else if (!token) {
-    gB.appendChild(el('p', 'muted small',
-      'Gönderim anahtarı henüz gelmedi. Üstteki eşitleme tuşuna dokunup tekrar dene.'));
-    box.appendChild(gB);
-  } else {
-    const listB = el('ol', 'steps-list');
-    const stepsB = [
-      'A yolundaki 1-4. adımları aynen yap (değişkenler hazır olsun).',
-      '<b>URL İçeriğini Al</b> (Get Contents of URL) ekle → aşağıdaki <b>adresi</b> yapıştır, '
-        + 'Yöntem: <b>POST</b>.',
-      'Başlıklar: <b>apikey</b> = aşağıdaki anahtar, <b>Content-Type</b> = <b>application/json</b>.',
-      'İstek Gövdesi: <b>JSON</b> → <b>p_token</b> (metin, gönderim anahtarı), '
-        + '<b>p_day</b> (Geçerli Tarih → <b>Tarihi Biçimlendir</b> → özel biçim <b>yyyy-MM-dd</b>), '
-        + '<b>p_steps</b>=adim, <b>p_active_kcal</b>=kalori, <b>p_exercise_min</b>=egzersiz, '
-        + '<b>p_distance_km</b>=mesafe.',
-      'Otomatik olsun istersen: Kısayollar → <b>Otomasyon</b> → <b>Saat</b> → '
-        + `<b>${esc(p.reminder_time || '21:00')}</b> → “Çalıştırmadan Önce Sor”u kapat → `
-        + 'bu kısayolu seç. Artık her akşam kendiliğinden gider.',
-    ];
-    for (const it of stepsB) listB.appendChild(el('li', null, it));
-    gB.appendChild(listB);
-    box.appendChild(gB);
-
-    copyRow('B · Adres (URL)', api.ingestEndpoint());
-    copyRow('B · apikey başlığı', CONFIG.anonKey);
-    copyRow('B · Gönderim anahtarı (p_token)', token,
-      'Bu anahtar yalnız veri YAZAR; kimse onunla verilerini okuyamaz.');
-  }
-
-  /* ---------- C: ekran görüntüsü kısayolu ---------- */
-  const gC = el('div', 'set-group');
-  gC.appendChild(el('div', 'set-title', 'C · Ekran görüntüsünü iPhone okusun (isteğe bağlı)'));
-  const listC = el('ol', 'steps-list');
-  const stepsC = [
-    'Yeni kısayol → adı <b>Sağlık Görüntü</b>.',
-    '<b>Görüntüden Metin Çıkar</b> → girdi: <b>Kısayol Girdisi</b>.',
-    '<b>Metni URL Kodla</b> ekle.',
-    `<b>URL’leri Aç</b> → <code>${esc(base)}#ocr=</code> + (kodlanmış metin).`,
-    '<b>ⓘ</b> → <b>Paylaşım Sayfasında Göster</b> aç, tür: <b>Görüntüler</b>. Artık '
-      + 'Fotoğraflar’da ekran görüntüsünü paylaşıp bu kısayolu seçebilirsin.',
-  ];
-  for (const it of stepsC) listC.appendChild(el('li', null, it));
-  gC.appendChild(listC);
-  box.appendChild(gC);
-
-  const runBtn = el('button', 'btn-primary wide', 'Kısayolu şimdi çalıştır');
-  runBtn.style.marginTop = '14px';
-  runBtn.onclick = () => {
-    window.location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(CONFIG.shortcutName)}`;
-  };
-  box.appendChild(runBtn);
-
-  const openApp = el('button', 'btn-ghost wide', 'Kısayollar uygulamasını aç');
-  openApp.style.marginTop = '8px';
-  openApp.onclick = () => { window.location.href = 'shortcuts://'; };
-  box.appendChild(openApp);
-
-  if (cloudOn() && token) {
-    const rot = el('button', 'set-action danger', 'Gönderim anahtarını yenile');
-    rot.style.marginTop = '12px';
-    rot.onclick = async () => {
-      if (!rot.dataset.sure) {
-        rot.dataset.sure = '1';
-        rot.textContent = 'Eski kısayol çalışmaz olur — tekrar dokun';
-        return;
-      }
-      busy('Yenileniyor…');
-      try {
-        const t = await api.rotateIngestToken();
-        S.setProfile({ ingest_token: typeof t === 'string' ? t : t?.[0] || null }, { dirty: false });
-        unbusy();
-        toast('Yeni anahtar alındı');
-        shortcutWizard();
-      } catch (e) {
-        unbusy();
-        toast(e.message || 'Yenilenemedi', { error: true });
-      }
-    };
-    box.appendChild(rot);
-  }
-
-  openSheet('iPhone kısayolu', box);
-}
-
 /* ================= olaylar ================= */
 
 function wire() {
@@ -1541,22 +1631,8 @@ function wire() {
   $('sheet-backdrop').onclick = closeSheet;
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sheetOpen()) closeSheet(); });
 
-  $('btn-shortcut').onclick = () => {
-    if (!isIOS) { toast('Bu tuş iPhone/iPad içindir', { error: true }); return; }
-    const t0 = Date.now();
-    window.location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(CONFIG.shortcutName)}`;
-    // Kısayol açılırsa sayfa arka plana düşer. 1,6 sn sonra hâlâ öndeysek kısayol yok demektir.
-    setTimeout(() => {
-      if (document.visibilityState === 'visible' && Date.now() - t0 < 4000) {
-        toast(`<b>${esc(CONFIG.shortcutName)}</b> adlı kısayol bulunamadı — kurulum açılıyor`, { ms: 3000 });
-        shortcutWizard();
-      } else {
-        syncNow({ quiet: true });
-      }
-    }, 1600);
-    setTimeout(() => syncNow({ quiet: true }), 6000);
-  };
   $('btn-manual').onclick = () => manualSheet(U.today());
+  $('coach-run').onclick = runCoach;
   $('btn-upload-fitness').onclick = () => $('file-fitness').click();
   $('file-fitness').onchange = (e) => {
     const f = e.target.files?.[0];
@@ -1572,27 +1648,7 @@ function wire() {
     e.target.value = '';
     if (!f) return;
     if (isAndroidApp() && cloudOn()) { uploadImage(f, 'scale'); return; }
-    // tartı ekranını tarayıcıda oku
-    busy('Tartı okunuyor…');
-    try {
-      const raw = await recognizeImage(f);
-      unbusy();
-      const wr = A.weightReport(S.state.weights, S.profile());
-      const kgVal = P.parseWeightText(P.cleanText(raw), { hint: wr.empty ? null : wr.latest.kg });
-      const due = A.weighDueDay(S.profile(), U.today());
-      if (kgVal == null) {
-        toast('Tartıdaki sayı okunamadı — elle yazabilirsin', { error: true });
-        $('weight-input').focus();
-        return;
-      }
-      S.setWeight(due, { kg: kgVal }, { source: 'photo' });
-      render();
-      toast(`${U.relativeDay(due)} için <b>${U.nf(kgVal, 1)} kg</b> okundu`);
-      if (cloudOn()) { try { await S.push(api); } catch (err) { /* sonra */ } }
-    } catch (err) {
-      unbusy();
-      toast('Fotoğraf okunamadı — kiloyu elle yaz', { error: true });
-    }
+    readScalePhoto(f);
   };
 
   $('weight-save').onclick = async () => {
@@ -1634,6 +1690,7 @@ function wire() {
     applyOrAsk,
     conflictSheet,
     screenshotSheet,
+    readScalePhoto,
     pasteSheet,
     manualSheet,
     render,

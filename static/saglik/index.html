@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#0a1014">
-<meta name="description" content="Günlük spor verisi, haftalık kilo takibi ve hafta/ay/yıl analizleri — iPhone Sağlık verisiyle çalışır.">
+<meta name="description" content="Günlük spor verisi, haftalık kilo takibi ve hafta/ay/yıl analizleri. Görselden okur ya da elle girersin.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Sağlık Panel">
@@ -50,7 +50,7 @@
       <button class="btn-primary wide" id="auth-submit" type="submit">Giriş yap</button>
     </form>
 
-    <p class="auth-hint" id="auth-hint">Hesabın verilerini iPhone ve Android arasında eşitler; e-posta onayı beklemeden hemen açılır.</p>
+    <p class="auth-hint" id="auth-hint">Hesabın verilerini tüm cihazların arasında eşitler; e-posta onayı beklemeden hemen açılır.</p>
     <button class="link-btn subtle" id="auth-local">Hesap açmadan, yalnız bu cihazda kullan</button>
     <button class="link-btn subtle" id="auth-cloud" hidden>Kendi Supabase projene bağlan</button>
     <p class="auth-note" id="auth-config-note" hidden>
@@ -95,13 +95,9 @@
       <div class="metric-grid" id="today-metrics"></div>
 
       <div class="action-row">
-        <button class="btn-primary" id="btn-shortcut">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg>
-          iPhone'dan veri çek
-        </button>
-        <button class="btn-ghost" id="btn-upload-fitness">
+        <button class="btn-primary" id="btn-upload-fitness">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Ekran görüntüsü
+          Görselden oku
         </button>
         <button class="btn-ghost" id="btn-manual">Elle gir</button>
       </div>
@@ -184,6 +180,17 @@
       </div>
       <div class="chart" id="weight-chart"></div>
       <div class="stat-grid" id="weight-stats"></div>
+    </section>
+
+    <section class="card" id="coach-card">
+      <div class="card-head">
+        <h2>Değerlendirme</h2>
+        <span class="pill" id="coach-mode">—</span>
+      </div>
+      <p class="muted small" id="coach-text">Rakamlarına bakıp kısa bir değerlendirme yazayım.</p>
+      <div class="row-actions">
+        <button class="btn-primary" id="coach-run">Değerlendir</button>
+      </div>
     </section>
 
     <section class="card">

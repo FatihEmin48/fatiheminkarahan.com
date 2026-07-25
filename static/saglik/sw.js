@@ -3,9 +3,10 @@
 const CACHE = 'saglik-panel-v1.0.0';
 const SHELL = [
   './', 'index.html', 'style.css', 'manifest.webmanifest', 'icon.svg',
-  'js/app.js', 'js/charts.js', 'js/ocr-web.js',
+  'js/app.js', 'js/charts.js', 'js/ocr-web.js', 'js/ai.js',
   'js/core/core-util.js', 'js/core/core-parse.js', 'js/core/core-analysis.js',
   'js/core/core-store.js', 'js/core/core-api.js', 'js/core/config.js',
+  'js/core/core-coach.js',
 ];
 
 self.addEventListener('install', (e) => {
