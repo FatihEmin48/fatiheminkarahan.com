@@ -134,7 +134,7 @@ export function longestStreak(days, stepGoal = 8000) {
  * aynı gün sayısına kırpılır.
  */
 function elapsedDays(startKey, endKey, todayKey = today()) {
-  if (todayKey >= endKey) return null;                 // dönem tamamlanmış
+  if (todayKey > endKey) return null;                  // dönem bitti
   if (todayKey < startKey) return 0;                   // gelecek dönem
   return daysBetween(todayKey, startKey);              // 0 = ilk gün
 }
@@ -173,7 +173,7 @@ export function weekReport(days, startKey = weekStart(), profile = {}) {
     prev,
     delta: compare(cur, prev),
     partial: elapsed != null,
-    prevLabel: elapsed != null
+    prevLabel: elapsed != null && elapsed < 6
       ? `geçen haftanın ilk ${elapsed + 1} günü`
       : 'geçen hafta',
     series,
@@ -218,7 +218,7 @@ export function monthReport(days, startKey = monthStart(), profile = {}) {
     prev,
     delta: compare(cur, prev),
     partial: elapsed != null,
-    prevLabel: elapsed != null
+    prevLabel: elapsed != null && shiftDay(startKey, elapsed) < endKey
       ? `önceki ayın ilk ${elapsed + 1} günü`
       : 'önceki ay',
     weeks,

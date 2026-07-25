@@ -12,7 +12,10 @@ import {
 import { barChart, lineChart, sparkline } from './charts.js';
 import { recognizeImage, recognizeRotations, recognizeArea } from './ocr-web.js';
 import { buildSummary, localAssessment, buildPrompt } from './core/core-coach.js';
-import { hasAiKey, getAiKey, setAiKey, clearAiKey, askAi } from './ai.js';
+import {
+  hasAiKey, getAiKey, setAiKey, clearAiKey, ask as askAi,
+  aiAvailable, aiServerReady, hasAiServer,
+} from './ai.js';
 
 const $ = (id) => document.getElementById(id);
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -21,6 +24,7 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
 const isAndroidApp = () => !!window.Capacitor?.isNativePlatform?.();
 
 let view = 'today';
+let selDay = U.today();          // Bugün ekranında görüntülenen gün
 let range = 'week';
 let offset = 0;            // 0 = bu dönem, -1 = önceki
 let authMode = 'signin';   // signin | signup
@@ -233,15 +237,26 @@ function render() {
 /* ================= çizim: bugün ================= */
 
 function renderToday() {
-  const key = U.today();
+  // gün değiştiyse (gece yarısını geçtiysek) seçimi bugüne al
+  if (selDay > U.today()) selDay = U.today();
+  const key = selDay;
   const rec = S.getDay(key) || {};
   const p = S.profile();
+  const isToday = key === U.today();
+
+  // gün gezinme çubuğu
+  const pick = $('day-pick');
+  $('day-pick-label').textContent = isToday ? 'Bugün' : U.relativeDay(key);
+  pick.classList.toggle('past', !isToday);
+  $('day-next').disabled = isToday;
+  $('day-next').style.opacity = isToday ? '.35' : '1';
+  $('day-input').value = key;
 
   $('today-label').textContent = U.prettyDayFull(key);
   const has = S.hasDayData(key);
   $('today-source').textContent = has
     ? (SOURCE_LABEL[rec.source] || 'Kaydedildi')
-    : 'Bugünün verisi henüz yok';
+    : (isToday ? 'Bugünün verisi henüz yok' : 'Bu günün verisi yok — girebilirsin');
 
   const score = A.dayScore(rec, p);
   const C = 2 * Math.PI * 30;
@@ -270,6 +285,22 @@ function renderToday() {
   const hint = $('shortcut-hint');
   if (!hint.dataset.custom) hint.hidden = true;
 
+  // geçmiş gündeysen tek dokunuşla bugüne dön
+  const heroCard = document.querySelector('#view-today .hero');
+  let back = document.getElementById('back-today');
+  if (!isToday) {
+    if (!back) {
+      back = el('button', 'back-today', '');
+      back.id = 'back-today';
+      back.onclick = () => { selDay = U.today(); renderToday(); };
+      heroCard.appendChild(back);
+    }
+    back.textContent = `${U.prettyDay(key)} gününü düzenliyorsun — bugüne dön`;
+    back.hidden = false;
+  } else if (back) {
+    back.hidden = true;
+  }
+
   renderWeightCard();
   renderMissing();
   renderUploads();
@@ -278,8 +309,8 @@ function renderToday() {
 function renderWeightCard() {
   const p = S.profile();
   const wr = A.weightReport(S.state.weights, p);
-  const due = A.weighDueDay(p, U.today());
-  const pending = A.isWeighPending(S.state.weights, p, U.today());
+  const due = A.weighDueDay(p, selDay);
+  const pending = A.isWeighPending(S.state.weights, p, selDay);
 
   const pill = $('weigh-pill');
   pill.textContent = pending
@@ -331,7 +362,7 @@ function renderMissing() {
   host.innerHTML = '';
   for (const k of miss.reverse()) {
     const c = el('button', 'chip', U.relativeDay(k));
-    c.onclick = () => manualSheet(k);
+    c.onclick = () => { selDay = k; renderToday(); manualSheet(k); };
     host.appendChild(c);
   }
 }
@@ -550,7 +581,7 @@ function renderDayList() {
     row.innerHTML = `<span class="d">${U.relativeDay(k)}</span>`
       + `<span class="v">${bits.length ? esc(bits.join(' · ')) : 'veri yok'}</span>`
       + `<span class="s">${hit ? '✓' : ''}</span>`;
-    row.onclick = () => manualSheet(k);
+    row.onclick = () => { selDay = k; manualSheet(k); };
     host.appendChild(row);
   }
 }
@@ -576,7 +607,27 @@ function manualSheet(key) {
   const box = el('div');
 
   const g1 = el('div', 'set-group');
-  g1.appendChild(el('div', 'set-title', U.prettyDayFull(key)));
+  const head = el('div', 'day-nav');
+  head.style.marginBottom = '8px';
+  const prev = el('button', 'icon-btn small',
+    '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+  prev.onclick = () => { selDay = U.shiftDay(key, -1); closeSheet(); renderToday(); manualSheet(selDay); };
+  const title = el('div', 'day-pick', esc(U.prettyDayFull(key)));
+  title.style.cursor = 'default';
+  const next = el('button', 'icon-btn small',
+    '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+  const canNext = key < U.today();
+  next.disabled = !canNext;
+  next.style.opacity = canNext ? '1' : '.35';
+  next.onclick = () => {
+    if (!canNext) return;
+    selDay = U.shiftDay(key, 1);
+    closeSheet();
+    renderToday();
+    manualSheet(selDay);
+  };
+  head.append(prev, title, next);
+  g1.appendChild(head);
   const b1 = el('div', 'set-box');
   b1.appendChild(numberField('Adım', 'm-steps', rec.steps));
   b1.appendChild(numberField('Mesafe', 'm-dist', rec.distance_km, { unit: 'km', mode: 'decimal' }));
@@ -1065,7 +1116,7 @@ async function uploadImage(file, kind) {
       user_id: api.userId,
       path,
       kind,
-      day: U.today(),
+      day: selDay,
       status: 'pending',
     });
     await loadUploads();
@@ -1244,53 +1295,118 @@ async function handleHashIngest() {
   return true;
 }
 
-/* ================= değerlendirme (kurallı + isteğe bağlı yapay zekâ) ================= */
+/* ================= değerlendirme + soru-cevap ================= */
 
 let coachBusy = false;
+let coachSearch = false;
 
 function renderCoachCard() {
   const pill = $('coach-mode');
-  if (pill) pill.textContent = hasAiKey() ? 'yapay zekâ açık' : 'cihazda';
+  if (pill) {
+    pill.textContent = aiServerReady() ? 'yapay zekâ (sunucu)'
+      : hasAiKey() ? 'yapay zekâ (cihaz)' : 'cihazda';
+  }
+  const sw = $('coach-search');
+  if (sw) sw.classList.toggle('on', coachSearch);
 }
 
-async function runCoach() {
+function showCoach(text, sources = [], { html = false } = {}) {
+  const out = $('coach-text');
+  if (html) out.innerHTML = text;
+  else out.innerHTML = esc(text).replace(/\n/g, '<br>');
+
+  const box = $('coach-sources');
+  box.innerHTML = '';
+  for (const src of (sources || []).slice(0, 5)) {
+    if (!src?.uri) continue;
+    const a = document.createElement('a');
+    a.className = 'chip';
+    a.href = src.uri;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = (src.title || src.uri).slice(0, 42);
+    box.appendChild(a);
+  }
+}
+
+async function coachRequest({ mode, question = '' }) {
   if (coachBusy) return;
   coachBusy = true;
-  const out = $('coach-text');
-  const btn = $('coach-run');
+  const btn = mode === 'ask' ? $('coach-ask') : $('coach-run');
+  btn.disabled = true;
+
   const summary = buildSummary(S.state.days, S.state.weights, S.profile());
   const local = localAssessment(summary);
 
-  if (!hasAiKey()) {
-    out.textContent = local;
+  if (mode === 'assess' && !aiAvailable()) {
+    showCoach(local);
     coachBusy = false;
+    btn.disabled = false;
+    return;
+  }
+  if (mode === 'ask' && !aiAvailable()) {
+    showCoach('Soru sorabilmek için yapay zekâ gerekiyor. Ayarlar → Değerlendirme '
+      + 'bölümünden açabilirsin; hesabınla giriş yaptıysan çoğu kurulumda hazır gelir.');
+    coachBusy = false;
+    btn.disabled = false;
     return;
   }
 
-  btn.disabled = true;
-  out.textContent = 'Yapay zekâ değerlendiriyor…';
+  showCoach(mode === 'ask' ? 'Düşünüyorum…' : 'Değerlendiriliyor…');
   try {
-    const text = await askAi(buildPrompt(summary));
-    out.innerHTML = esc(text).replace(/\n/g, '<br>');
+    const devicePrompt = mode === 'ask'
+      ? [
+        'Bir sağlık takip uygulamasının kullanıcısı soru soruyor.',
+        'Kullanıcının verileri (JSON):', JSON.stringify(summary), '',
+        'Soru: ' + question, '',
+        'Türkçe, sade ve somut yanıtla. Tıbbi teşhis koyma; ciddi bir şikâyet ima',
+        'ediliyorsa doktora danışmayı bir cümleyle hatırlat. En fazla 200 kelime.',
+      ].join('\n')
+      : buildPrompt(summary);
+
+    const out = await askAi({ mode, question, summary, search: coachSearch, devicePrompt });
+    const via = out.via === 'sunucu' ? '' : ' <span style="color:var(--text-faint)">(cihaz anahtarı)</span>';
+    showCoach(esc(out.text).replace(/\n/g, '<br>') + via, out.sources, { html: true });
+    if (out.remaining != null && out.remaining <= 3) {
+      toast(`Bugün ${out.remaining} soru hakkın kaldı`);
+    }
   } catch (e) {
-    out.innerHTML = `${esc(local)}<br><br><span style="color:var(--danger)">`
-      + `Yapay zekâ yanıt vermedi: ${esc(e.message || 'bilinmeyen hata')}</span>`;
+    const msg = esc(e.message || 'Yapay zekâ yanıt vermedi');
+    showCoach(`${esc(local)}<br><br><span style="color:var(--danger)">Yapay zekâ: ${msg}</span>`,
+      [], { html: true });
   } finally {
     btn.disabled = false;
     coachBusy = false;
   }
 }
 
+const runCoach = () => coachRequest({ mode: 'assess' });
+
+function askCoach() {
+  const input = $('coach-q');
+  const q = input.value.trim();
+  if (!q) { input.focus(); return; }
+  coachRequest({ mode: 'ask', question: q });
+}
+
 function aiSheet() {
   const box = el('div');
-  box.appendChild(el('p', 'muted small',
-    'Değerlendirmeyi yapay zekâ yazsın istersen ücretsiz bir anahtar ekleyebilirsin. '
-    + 'Anahtar yalnız bu cihazda saklanır; gönderilen bilgi yalnızca özet sayılardır '
-    + '(ad, e-posta, görsel gönderilmez).'));
+
+  if (hasAiServer()) {
+    box.appendChild(el('p', 'muted small',
+      'Hesabınla giriş yaptığın için yapay zekâ <b>sunucu üzerinden</b> çalışır: '
+      + 'anahtar girmene gerek yok, kişisel bir sınır dahilinde ücretsizdir. '
+      + 'Sunucu tarafı kapalıysa aşağıya kendi ücretsiz anahtarını girebilirsin.'));
+  } else {
+    box.appendChild(el('p', 'muted small',
+      'Değerlendirmeyi ve soruları yapay zekâ yanıtlasın istersen ücretsiz bir anahtar '
+      + 'ekleyebilirsin. Anahtar yalnız bu cihazda saklanır; gönderilen bilgi yalnızca '
+      + 'özet sayılardır (ad, e-posta, görsel gönderilmez).'));
+  }
 
   const f = el('label', 'field');
   f.style.marginTop = '10px';
-  f.innerHTML = '<span>Anahtar</span>';
+  f.innerHTML = '<span>Kendi anahtarın (isteğe bağlı)</span>';
   const input = el('input');
   input.type = 'text';
   input.placeholder = 'AI... ile başlayan anahtar';
@@ -1309,10 +1425,11 @@ function aiSheet() {
     msg.textContent = 'Deneniyor…';
     try {
       setAiKey(input.value);
-      await askAi('Yalnızca "tamam" yaz.');
-      msg.innerHTML = '<b>Çalışıyor.</b> Analiz sayfasındaki “Değerlendir” artık yapay zekâ kullanacak.';
+      await askAi({ mode: 'ask', question: 'Yalnızca "tamam" yaz.', summary: {},
+        devicePrompt: 'Yalnızca "tamam" yaz.' });
+      msg.innerHTML = '<b>Çalışıyor.</b>';
       renderCoachCard();
-      setTimeout(closeSheet, 900);
+      setTimeout(closeSheet, 800);
     } catch (e) {
       clearAiKey();
       msg.innerHTML = `<span style="color:var(--danger)">${esc(e.message || 'Olmadı')}</span>`;
@@ -1323,24 +1440,25 @@ function aiSheet() {
 
   const help = el('button', 'btn-ghost wide', 'Ücretsiz anahtar nasıl alınır?');
   help.style.marginTop = '8px';
-  help.onclick = () => {
-    window.open('https://aistudio.google.com/apikey', '_blank', 'noopener');
-  };
+  help.onclick = () => window.open('https://aistudio.google.com/apikey', '_blank', 'noopener');
   box.appendChild(help);
 
   if (hasAiKey()) {
-    const rm = el('button', 'set-action danger', 'Anahtarı kaldır');
+    const rm = el('button', 'set-action danger', 'Cihazdaki anahtarı kaldır');
     rm.style.marginTop = '12px';
     rm.onclick = () => {
       clearAiKey();
       renderCoachCard();
       closeSheet();
-      toast('Yapay zekâ kapatıldı — değerlendirme cihazda yazılacak');
+      toast('Cihaz anahtarı kaldırıldı');
     };
     box.appendChild(rm);
   }
 
-  openSheet('Yapay zekâ değerlendirmesi', box);
+  box.appendChild(el('p', 'about',
+    'Yapay zekâ yanıtları bilgilendirme amaçlıdır, tıbbi tavsiye değildir.'));
+
+  openSheet('Yapay zekâ', box);
 }
 
 /* ================= bulut bağlantısı ================= */
@@ -1518,15 +1636,16 @@ function settingsSheet() {
   const gAi = el('div', 'set-group');
   gAi.appendChild(el('div', 'set-title', 'Değerlendirme'));
   const bAi = el('div', 'set-box');
-  const aiBtn = el('button', 'set-action',
-    hasAiKey() ? 'Yapay zekâ anahtarını değiştir' : 'Yapay zekâ değerlendirmesini aç (ücretsiz)');
+  const aiBtn = el('button', 'set-action', 'Yapay zekâ ayarları');
   aiBtn.onclick = aiSheet;
   bAi.appendChild(aiBtn);
   gAi.appendChild(bAi);
-  gAi.appendChild(el('p', 'about', hasAiKey()
-    ? 'Açık: “Değerlendir” dediğinde yorumu yapay zekâ yazar. Anahtar yalnız bu cihazda durur.'
-    : 'Kapalı: değerlendirme cihazında, kurallara göre yazılır. İstersen ücretsiz bir '
-      + 'yapay zekâ anahtarı ekleyip daha ayrıntılı yorum alabilirsin.'));
+  gAi.appendChild(el('p', 'about', aiServerReady()
+    ? 'Açık (sunucu): değerlendirme ve sorular yapay zekâ ile yanıtlanır, anahtar girmene gerek yok.'
+    : hasAiKey()
+      ? 'Açık (bu cihazdaki anahtarla).'
+      : 'Kapalı: değerlendirme cihazında, kurallara göre yazılır. Girişliysen sunucu '
+        + 'yapay zekâsı otomatik denenir; istersen kendi ücretsiz anahtarını da girebilirsin.'));
   box.appendChild(gAi);
 
   /* görünüm */
@@ -1631,8 +1750,34 @@ function wire() {
   $('sheet-backdrop').onclick = closeSheet;
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sheetOpen()) closeSheet(); });
 
-  $('btn-manual').onclick = () => manualSheet(U.today());
+  $('day-prev').onclick = () => { selDay = U.shiftDay(selDay, -1); renderToday(); };
+  $('day-next').onclick = () => {
+    if (selDay >= U.today()) return;
+    selDay = U.shiftDay(selDay, 1);
+    renderToday();
+  };
+  $('day-pick').onclick = () => {
+    const inp = $('day-input');
+    inp.max = U.today();
+    inp.style.pointerEvents = 'auto';
+    if (inp.showPicker) { try { inp.showPicker(); } catch (e) { inp.click(); } } else inp.click();
+    setTimeout(() => { inp.style.pointerEvents = 'none'; }, 400);
+  };
+  $('day-input').onchange = (e) => {
+    const v = e.target.value;
+    if (U.isValidKey(v) && v <= U.today()) { selDay = v; renderToday(); }
+  };
+  $('btn-manual').onclick = () => manualSheet(selDay);
   $('coach-run').onclick = runCoach;
+  $('coach-ask').onclick = askCoach;
+  $('coach-q').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); askCoach(); }
+  });
+  $('coach-search').onclick = () => {
+    coachSearch = !coachSearch;
+    renderCoachCard();
+    toast(coachSearch ? 'Gerekirse internette arayacak' : 'Yalnız verilerine bakacak');
+  };
   $('btn-upload-fitness').onclick = () => $('file-fitness').click();
   $('file-fitness').onchange = (e) => {
     const f = e.target.files?.[0];
@@ -1640,7 +1785,7 @@ function wire() {
     if (!f) return;
     // Android uygulamasında native ML Kit daha hızlı: yükle, işçi okusun.
     if (isAndroidApp() && cloudOn()) uploadImage(f, 'fitness');
-    else screenshotSheet(f, U.today());
+    else screenshotSheet(f, selDay);
   };
   $('btn-upload-scale').onclick = () => $('file-scale').click();
   $('file-scale').onchange = async (e) => {
