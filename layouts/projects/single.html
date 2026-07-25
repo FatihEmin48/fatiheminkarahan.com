@@ -48,6 +48,21 @@
   </section>
 
   <section class="project-section">
+    <h2 class="section-heading">{{ i18n "appsHeading" }}</h2>
+    <div class="project-grid">
+      {{ range slice "/saglik-panel" }}
+        {{ with $.Site.GetPage . }}
+        <article class="project-card">
+          <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
+          {{ .Summary }}
+          <a class="read-more" href="{{ .RelPermalink }}">{{ i18n "readMore" }} &rarr;</a>
+        </article>
+        {{ end }}
+      {{ end }}
+    </div>
+  </section>
+
+  <section class="project-section">
     <h2 class="section-heading">{{ i18n "gamesHeading" }}</h2>
     <div class="project-grid">
       {{ range slice "/hayatta-kalma" "/altin-madeni" "/ciftlik" "/zipla" }}

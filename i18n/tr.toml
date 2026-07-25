@@ -129,3 +129,6 @@ other = "nesne tespit edildi."
 
 [tomatoNoObjectsDetected]
 other = "Domates tespit edilemedi."
+
+[appsHeading]
+other = "Uygulamalar"
