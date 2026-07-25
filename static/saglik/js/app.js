@@ -699,11 +699,14 @@ function pasteSheet(key = U.today(), prefill = '') {
   saveBtn.hidden = true;
   saveBtn.onclick = async () => {
     if (!parsed || parsed.empty) return;
-    S.setDay(key, P.toActivityPatch(parsed.values), { source: 'screenshot' });
+    const values = P.toActivityPatch(parsed.values);
     closeSheet();
+    const ok = await applyOrAsk(key, values, { source: 'screenshot', label: 'yapıştırılan metin' });
     render();
-    toast('Ekran görüntüsünden <b>kaydedildi</b>');
-    if (cloudOn()) { try { await S.push(api); } catch (e) { /* sonra */ } }
+    if (ok) {
+      toast('Ekran görüntüsünden <b>kaydedildi</b>');
+      if (cloudOn()) { try { await S.push(api); } catch (e) { /* sonra */ } }
+    }
   };
   box.appendChild(saveBtn);
 
@@ -745,6 +748,91 @@ async function uploadImage(file, kind) {
   }
 }
 
+/* ================= aynı güne ikinci ölçüm (çakışma) ================= */
+
+/**
+ * Ölçümü uygular; kayıtlıdan düşük değer varsa kullanıcıya sorar.
+ * @returns Promise<boolean> uygulandı mı
+ */
+function applyOrAsk(day, values, { source = 'screenshot', label = 'Yeni okuma' } = {}) {
+  const res = S.applyMeasurement(day, values, { source });
+  if (res.applied) return Promise.resolve(true);
+  if (!res.conflict) return Promise.resolve(false);
+  return new Promise((resolve) => conflictSheet(res.conflict, { source, label }, resolve));
+}
+
+function conflictSheet(conflict, { source = 'screenshot', label = 'Yeni okuma' } = {}, done = () => {}) {
+  const box = el('div');
+  const day = conflict.day;
+
+  box.appendChild(el('p', 'muted small',
+    `<b>${esc(U.relativeDay(day))}</b> için zaten kayıtlı değerler var ve yeni okuma daha `
+    + 'düşük. Adım, kalori ve mesafe gün içinde yalnız artar — bu yüzden yanlış '
+    + '(ör. dünün) ekran görüntüsü yüklenmiş olabilir. Hangisi doğru?'));
+
+  const table = el('div', 'set-box');
+  table.style.marginTop = '12px';
+  const head = el('div', 'set-row');
+  head.innerHTML = '<div class="set-label"><b>Ölçüt</b></div>'
+    + '<div style="width:78px;text-align:right;font-size:.78rem;color:var(--text-faint);font-weight:700">KAYITLI</div>'
+    + '<div style="width:78px;text-align:right;font-size:.78rem;color:var(--accent);font-weight:700">YENİ</div>';
+  table.appendChild(head);
+
+  const fmtVal = (f, v) => (f === 'distance_km' ? U.nf(v, 1) : U.nf(v));
+  for (const row of [...conflict.lower, ...conflict.higher]) {
+    const r = el('div', 'set-row');
+    const down = row.next < row.old;
+    r.innerHTML = `<div class="set-label"><b>${esc(row.label)}</b></div>`
+      + `<div style="width:78px;text-align:right;font-variant-numeric:tabular-nums">${fmtVal(row.field, row.old)}</div>`
+      + `<div style="width:78px;text-align:right;font-variant-numeric:tabular-nums;`
+      + `color:${down ? 'var(--danger)' : 'var(--accent)'};font-weight:700">${fmtVal(row.field, row.next)}</div>`;
+    table.appendChild(r);
+  }
+  box.appendChild(table);
+
+  let settled = false;
+  const finish = (applied) => {
+    if (settled) return;
+    settled = true;
+    closeSheet();
+    render();
+    if (applied && cloudOn()) { S.push(api).catch(() => {}); }
+    done(applied);
+  };
+
+  const useNew = el('button', 'btn-primary wide', 'Yeni değerleri kullan');
+  useNew.style.marginTop = '14px';
+  useNew.onclick = () => {
+    S.applyMeasurement(day, conflict.incoming, { source, mode: 'replace' });
+    toast('Yeni değerler kaydedildi');
+    finish(true);
+  };
+  box.appendChild(useNew);
+
+  const keepMax = el('button', 'btn-ghost wide', 'Her ölçütün büyüğünü al');
+  keepMax.style.marginTop = '8px';
+  keepMax.onclick = () => {
+    S.applyMeasurement(day, conflict.incoming, { source, mode: 'max' });
+    toast('Yüksek olan değerler tutuldu');
+    finish(true);
+  };
+  box.appendChild(keepMax);
+
+  const keep = el('button', 'btn-ghost wide', 'Kayıtlı değerler doğru — bunu yok say');
+  keep.style.marginTop = '8px';
+  keep.onclick = () => {
+    toast('Yeni okuma yok sayıldı');
+    finish(false);
+  };
+  box.appendChild(keep);
+
+  box.appendChild(el('p', 'about',
+    `Kaynak: ${esc(label)}. Kararın yalnız ${esc(U.prettyDay(day))} gününü etkiler; `
+    + 'istediğin zaman "Elle gir" ile düzeltebilirsin.'));
+
+  openSheet('Hangisi doğru?', box);
+}
+
 /* ================= URL ile veri alma (iPhone kısayolu) =================
    Kısayol iki biçimde veri verebilir:
      .../saglik/#adim=8432&mesafe=6.1&kalori=455&egzersiz=32&ayakta=11&gun=2026-07-25
@@ -784,8 +872,9 @@ async function handleHashIngest() {
     if (v != null) direct[field] = v;
   }
   if (Object.keys(direct).length) {
-    S.setDay(day, P.toActivityPatch(direct), { source: 'shortcut' });
-    notes.push(`${U.relativeDay(day)}: ${Object.keys(direct).length} değer kaydedildi`);
+    const ok = await applyOrAsk(day, P.toActivityPatch(direct),
+      { source: 'shortcut', label: 'iPhone kısayolu' });
+    if (ok) notes.push(`${U.relativeDay(day)}: ${Object.keys(direct).length} değer kaydedildi`);
   }
 
   // 2) kilo
@@ -807,8 +896,9 @@ async function handleHashIngest() {
       toast('Metinde tanıdık değer bulunamadı — gözden geçir', { error: true });
       return true;
     }
-    S.setDay(day, P.toActivityPatch(parsed.values), { source: 'screenshot' });
-    notes.push(`ekran görüntüsünden ${Object.keys(parsed.values).length} değer okundu`);
+    const ok = await applyOrAsk(day, P.toActivityPatch(parsed.values),
+      { source: 'screenshot', label: 'iPhone ekran görüntüsü' });
+    if (ok) notes.push(`ekran görüntüsünden ${Object.keys(parsed.values).length} değer okundu`);
   }
 
   clearHash();
@@ -1085,105 +1175,139 @@ function shortcutWizard() {
   const p = S.profile();
   const token = p.ingest_token;
   const box = el('div');
+  const base = (CONFIG.webUrl || location.origin + location.pathname).replace(/\/+$/, '') + '/';
 
-  if (!isCloudEnabled()) {
-    box.appendChild(el('p', 'muted small',
-      'Kısayol, verileri buluta gönderir. Önce <code>config.js</code> içine Supabase bilgilerini '
-      + 'yazıp hesap oluşturman gerekiyor.'));
-    openSheet('iPhone kısayolu', box);
-    return;
-  }
-  if (!token) {
-    box.appendChild(el('p', 'muted small',
-      'Gönderim anahtarı henüz alınmadı. Üstteki eşitleme tuşuna dokunup tekrar dene.'));
-    openSheet('iPhone kısayolu', box);
-    return;
-  }
-
-  const endpoint = api.ingestEndpoint();
   box.appendChild(el('p', 'muted small',
-    'Kısayollar uygulaması iPhone\'da hazır gelir ve Sağlık verisini okuyabilir. '
-    + 'Aşağıdaki kısayolu bir kez kurunca, her gün tek dokunuşla (ya da otomasyonla kendiliğinden) '
-    + 'o günün verisi buraya düşer.'));
+    `Panelin <b>iPhone'dan veri çek</b> tuşu, telefonundaki <b>${esc(CONFIG.shortcutName)}</b> `
+    + 'adlı kısayolu çalıştırır. Kısayol yoksa “bulunamadı” der — bir kez kurman yeterli. '
+    + 'İki yol var: <b>A</b> daha kolay, <b>B</b> arka planda kendiliğinden çalışır.'));
 
-  const addCopy = (title, value) => {
+  const copyRow = (title, value, note) => {
     const g = el('div', 'set-group');
     g.appendChild(el('div', 'set-title', title));
     g.appendChild(el('div', 'copybox', esc(value)));
+    if (note) g.appendChild(el('p', 'muted small', note));
     const btn = el('button', 'btn-ghost wide', 'Kopyala');
-    btn.onclick = () => copyText(value, title + ' kopyalandı');
+    btn.style.marginTop = '6px';
+    btn.onclick = () => copyText(value, 'Kopyalandı');
     g.appendChild(btn);
     box.appendChild(g);
   };
 
-  addCopy('1. Adres (URL)', endpoint);
-  addCopy('2. apikey başlığı', CONFIG.anonKey);
-  addCopy('3. Gönderim anahtarı (p_token)', token);
-
-  const steps = el('div', 'set-group');
-  steps.appendChild(el('div', 'set-title', 'Kısayolu oluştur'));
-  const list = el('ol', 'steps-list');
-  const items = [
-    'Kısayollar uygulamasını aç → sağ üstteki <b>+</b> ile yeni kısayol.',
-    'Kısayolun adını <b>' + esc(CONFIG.shortcutName) + '</b> yap (bu ad önemli: paneldeki tuş bu adı çağırır).',
-    '<b>Tarih</b> eylemi ekle → "Geçerli Tarih". Ardından <b>Tarihi Biçimlendir</b> ekle, '
-      + 'özel biçim: <b>yyyy-MM-dd</b>. (Bu, günün tarihini verir.)',
+  /* ---------- A: kolay yol ---------- */
+  const gA = el('div', 'set-group');
+  gA.appendChild(el('div', 'set-title', 'A · Kolay yol (anahtar gerekmez)'));
+  const listA = el('ol', 'steps-list');
+  const stepsA = [
+    'Kısayollar uygulamasını aç → sağ üstte <b>+</b>.',
+    `Üstteki ada dokunup adını <b>${esc(CONFIG.shortcutName)}</b> yap (birebir aynı olmalı).`,
     '<b>Sağlık Örneklerini Bul</b> ekle → Tür: <b>Adımlar</b>, Filtre: <b>Başlangıç Tarihi bugün</b>. '
-      + 'Altına <b>İstatistik Hesapla</b> → <b>Toplam</b>. Sonucu <b>adim</b> adlı değişkene ata.',
-    'Aynı üçlüyü şunlar için tekrarla: <b>Yürüme + Koşu Mesafesi</b> (→ mesafe, km), '
-      + '<b>Aktif Enerji</b> (→ kalori), <b>Egzersiz Dakikası</b> (→ egzersiz), '
-      + 'istersen <b>Ayakta Durma Saati</b> (→ ayakta).',
-    '<b>URL İçeriğini Al</b> eylemi ekle. URL: yukarıdaki <b>1. adres</b>. Yöntem: <b>POST</b>.',
-    'Başlıklar (Headers): <b>apikey</b> = yukarıdaki <b>2. anahtar</b>, '
-      + '<b>Content-Type</b> = <b>application/json</b>.',
-    'İstek Gövdesi: <b>JSON</b>. Alanlar: <b>p_token</b> (metin, 3. anahtar), '
-      + '<b>p_day</b> (biçimlendirilmiş tarih), <b>p_steps</b> (sayı, adim), '
-      + '<b>p_distance_km</b> (sayı, mesafe), <b>p_active_kcal</b> (sayı, kalori), '
-      + '<b>p_exercise_min</b> (sayı, egzersiz), <b>p_stand_hours</b> (sayı, ayakta).',
-    'Kısayolu çalıştır — ilk seferde Sağlık verisi izni ister, <b>İzin Ver</b>. '
-      + 'Sonra bu panelde eşitleme tuşuna dokun, veriler gelsin.',
-    'Otomatik olsun istersen: Kısayollar → <b>Otomasyon</b> → <b>Saat</b> → '
-      + `<b>${esc(p.reminder_time || '21:00')}</b> → "Çalıştırmadan Önce Sor"u kapat → bu kısayolu seç. `
-      + 'Artık her akşam kendiliğinden gönderilir ve hatırlatıcı görevi de görür.',
+      + 'Altına <b>İstatistik Hesapla</b> → <b>Toplam</b> ekle. Sonuca uzun basıp '
+      + '<b>Değişkene Ata</b> → adı: <b>adim</b>.',
+    'Aynı üçlüyü tekrarla: <b>Aktif Enerji</b> → <b>kalori</b>, '
+      + '<b>Egzersiz Dakikası</b> → <b>egzersiz</b>, <b>Yürüme + Koşu Mesafesi</b> → <b>mesafe</b>.',
+    '<b>URL’leri Aç</b> (Open URLs) ekle ve aşağıdaki adresi yapıştır. Sonra '
+      + '<b>ADIM / KALORI / EGZERSIZ / MESAFE</b> yazan yerleri silip yerlerine ilgili '
+      + '<b>değişkeni</b> sürükle.',
+    'Kısayolu bir kez çalıştır → Sağlık izni isterse <b>İzin Ver</b>. Panel açılır, o günün '
+      + 'verileri kaydedilir. Artık paneldeki <b>iPhone’dan veri çek</b> tuşu bunu çağırır.',
   ];
-  for (const it of items) list.appendChild(el('li', null, it));
-  steps.appendChild(list);
-  box.appendChild(steps);
+  for (const it of stepsA) listA.appendChild(el('li', null, it));
+  gA.appendChild(listA);
+  box.appendChild(gA);
 
-  const testG = el('div', 'set-group');
-  testG.appendChild(el('div', 'set-title', 'Kur ve dene'));
+  copyRow('A · Kısayola yapıştırılacak adres',
+    `${base}#adim=ADIM&kalori=KALORI&egzersiz=EGZERSIZ&mesafe=MESAFE`,
+    'Büyük harfli yerlere Kısayollar’daki değişkenleri sürükle. Ayakta saatini de eklemek '
+    + 'istersen sonuna &ayakta=AYAKTA yaz.');
+
+  /* ---------- B: otomatik yol ---------- */
+  const gB = el('div', 'set-group');
+  gB.appendChild(el('div', 'set-title', 'B · Otomatik yol (arka planda, panel açılmadan)'));
+  if (!cloudOn()) {
+    gB.appendChild(el('p', 'muted small',
+      'Bu yol için hesabınla giriş yapmış olman gerekir — veriler doğrudan hesabına yazılır.'));
+    box.appendChild(gB);
+  } else if (!token) {
+    gB.appendChild(el('p', 'muted small',
+      'Gönderim anahtarı henüz gelmedi. Üstteki eşitleme tuşuna dokunup tekrar dene.'));
+    box.appendChild(gB);
+  } else {
+    const listB = el('ol', 'steps-list');
+    const stepsB = [
+      'A yolundaki 1-4. adımları aynen yap (değişkenler hazır olsun).',
+      '<b>URL İçeriğini Al</b> (Get Contents of URL) ekle → aşağıdaki <b>adresi</b> yapıştır, '
+        + 'Yöntem: <b>POST</b>.',
+      'Başlıklar: <b>apikey</b> = aşağıdaki anahtar, <b>Content-Type</b> = <b>application/json</b>.',
+      'İstek Gövdesi: <b>JSON</b> → <b>p_token</b> (metin, gönderim anahtarı), '
+        + '<b>p_day</b> (Geçerli Tarih → <b>Tarihi Biçimlendir</b> → özel biçim <b>yyyy-MM-dd</b>), '
+        + '<b>p_steps</b>=adim, <b>p_active_kcal</b>=kalori, <b>p_exercise_min</b>=egzersiz, '
+        + '<b>p_distance_km</b>=mesafe.',
+      'Otomatik olsun istersen: Kısayollar → <b>Otomasyon</b> → <b>Saat</b> → '
+        + `<b>${esc(p.reminder_time || '21:00')}</b> → “Çalıştırmadan Önce Sor”u kapat → `
+        + 'bu kısayolu seç. Artık her akşam kendiliğinden gider.',
+    ];
+    for (const it of stepsB) listB.appendChild(el('li', null, it));
+    gB.appendChild(listB);
+    box.appendChild(gB);
+
+    copyRow('B · Adres (URL)', api.ingestEndpoint());
+    copyRow('B · apikey başlığı', CONFIG.anonKey);
+    copyRow('B · Gönderim anahtarı (p_token)', token,
+      'Bu anahtar yalnız veri YAZAR; kimse onunla verilerini okuyamaz.');
+  }
+
+  /* ---------- C: ekran görüntüsü kısayolu ---------- */
+  const gC = el('div', 'set-group');
+  gC.appendChild(el('div', 'set-title', 'C · Ekran görüntüsünü iPhone okusun (isteğe bağlı)'));
+  const listC = el('ol', 'steps-list');
+  const stepsC = [
+    'Yeni kısayol → adı <b>Sağlık Görüntü</b>.',
+    '<b>Görüntüden Metin Çıkar</b> → girdi: <b>Kısayol Girdisi</b>.',
+    '<b>Metni URL Kodla</b> ekle.',
+    `<b>URL’leri Aç</b> → <code>${esc(base)}#ocr=</code> + (kodlanmış metin).`,
+    '<b>ⓘ</b> → <b>Paylaşım Sayfasında Göster</b> aç, tür: <b>Görüntüler</b>. Artık '
+      + 'Fotoğraflar’da ekran görüntüsünü paylaşıp bu kısayolu seçebilirsin.',
+  ];
+  for (const it of stepsC) listC.appendChild(el('li', null, it));
+  gC.appendChild(listC);
+  box.appendChild(gC);
+
   const runBtn = el('button', 'btn-primary wide', 'Kısayolu şimdi çalıştır');
+  runBtn.style.marginTop = '14px';
   runBtn.onclick = () => {
     window.location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(CONFIG.shortcutName)}`;
   };
-  testG.appendChild(runBtn);
+  box.appendChild(runBtn);
 
-  const rot = el('button', 'set-action danger', 'Gönderim anahtarını yenile');
-  rot.style.marginTop = '10px';
-  rot.onclick = async () => {
-    if (!rot.dataset.sure) {
-      rot.dataset.sure = '1';
-      rot.textContent = 'Eski kısayol çalışmaz olur — tekrar dokun';
-      return;
-    }
-    busy('Yenileniyor…');
-    try {
-      const t = await api.rotateIngestToken();
-      S.setProfile({ ingest_token: typeof t === 'string' ? t : t?.[0] || null }, { dirty: false });
-      unbusy();
-      toast('Yeni anahtar alındı');
-      shortcutWizard();
-    } catch (e) {
-      unbusy();
-      toast(e.message || 'Yenilenemedi', { error: true });
-    }
-  };
-  testG.appendChild(rot);
-  box.appendChild(testG);
+  const openApp = el('button', 'btn-ghost wide', 'Kısayollar uygulamasını aç');
+  openApp.style.marginTop = '8px';
+  openApp.onclick = () => { window.location.href = 'shortcuts://'; };
+  box.appendChild(openApp);
 
-  box.appendChild(el('p', 'about',
-    'Gönderim anahtarı yalnız veri <b>yazmaya</b> yarar; kimse onunla verilerini okuyamaz. '
-    + 'Yine de paylaşma; sızdığını düşünürsen yukarıdan yenile.'));
+  if (cloudOn() && token) {
+    const rot = el('button', 'set-action danger', 'Gönderim anahtarını yenile');
+    rot.style.marginTop = '12px';
+    rot.onclick = async () => {
+      if (!rot.dataset.sure) {
+        rot.dataset.sure = '1';
+        rot.textContent = 'Eski kısayol çalışmaz olur — tekrar dokun';
+        return;
+      }
+      busy('Yenileniyor…');
+      try {
+        const t = await api.rotateIngestToken();
+        S.setProfile({ ingest_token: typeof t === 'string' ? t : t?.[0] || null }, { dirty: false });
+        unbusy();
+        toast('Yeni anahtar alındı');
+        shortcutWizard();
+      } catch (e) {
+        unbusy();
+        toast(e.message || 'Yenilenemedi', { error: true });
+      }
+    };
+    box.appendChild(rot);
+  }
 
   openSheet('iPhone kısayolu', box);
 }
@@ -1218,13 +1342,24 @@ function wire() {
 
   $('btn-shortcut').onclick = () => {
     if (!isIOS) { toast('Bu tuş iPhone/iPad içindir', { error: true }); return; }
+    const t0 = Date.now();
     window.location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(CONFIG.shortcutName)}`;
+    // Kısayol açılırsa sayfa arka plana düşer. 1,6 sn sonra hâlâ öndeysek kısayol yok demektir.
+    setTimeout(() => {
+      if (document.visibilityState === 'visible' && Date.now() - t0 < 4000) {
+        toast(`<b>${esc(CONFIG.shortcutName)}</b> adlı kısayol bulunamadı — kurulum açılıyor`, { ms: 3000 });
+        shortcutWizard();
+      } else {
+        syncNow({ quiet: true });
+      }
+    }, 1600);
     setTimeout(() => syncNow({ quiet: true }), 6000);
   };
   $('btn-manual').onclick = () => manualSheet(U.today());
   $('btn-upload-fitness').onclick = () => {
-    if (cloudOn()) $('file-fitness').click();
-    else pasteSheet(U.today());
+    // iPhone/iPad: Apple'ın kendi metin tanıması anında sonuç verir, Android beklemeye gerek yok
+    if (isIOS || !cloudOn()) pasteSheet(U.today());
+    else $('file-fitness').click();
   };
   $('file-fitness').onchange = (e) => {
     uploadImage(e.target.files?.[0], 'fitness');
@@ -1269,6 +1404,14 @@ function wire() {
   S.onChange((reason) => {
     if (reason === 'sync' || reason === 'import' || reason === 'reset') render();
   });
+
+  // native-extras (Android OCR işçisi) buradan çakışma sorabilir
+  window.SaglikPanel = {
+    applyOrAsk,
+    conflictSheet,
+    render,
+    toast,
+  };
 }
 
 /* ================= açılış ================= */

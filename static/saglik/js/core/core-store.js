@@ -154,6 +154,74 @@ export function removeWeight(key) {
   commit('weight-remove');
 }
 
+/* ---------------- ölçüm çakışması (aynı güne ikinci görsel) ----------------
+   Adım, mesafe, kalori, egzersiz ve ayakta saati gün içinde yalnız ARTAR.
+   Bu yüzden yeni okunan değer kayıtlıdan büyükse sessizce güncellenir;
+   küçükse büyük olasılıkla yanlış (ör. dünün) ekran görüntüsü yüklenmiştir →
+   karar kullanıcıya bırakılır. */
+
+export const CUMULATIVE_FIELDS = ['steps', 'distance_km', 'active_kcal', 'exercise_min', 'stand_hours'];
+
+export const FIELD_LABELS = {
+  steps: 'Adım',
+  distance_km: 'Mesafe',
+  active_kcal: 'Kalori',
+  exercise_min: 'Egzersiz',
+  stand_hours: 'Ayakta',
+};
+
+const numOf = (v) => (v == null || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+
+/** Ölçüm hatası/yuvarlama payı: %0,5'ten küçük düşüşler çakışma sayılmaz. */
+const TOLERANCE = 0.995;
+
+/**
+ * Yeni ölçümü kayıtlıyla karşılaştırır.
+ * @returns null (çakışma yok) | {day, lower:[{field,label,old,next}], higher:[...], incoming}
+ */
+export function measureConflict(key, incoming) {
+  const cur = state.days[key];
+  if (!cur) return null;
+  const lower = [];
+  const higher = [];
+  for (const f of CUMULATIVE_FIELDS) {
+    const a = numOf(cur[f]);
+    const b = numOf(incoming[f]);
+    if (a == null || b == null) continue;
+    const row = { field: f, label: FIELD_LABELS[f] || f, old: a, next: b };
+    if (b < a * TOLERANCE) lower.push(row);
+    else if (b > a) higher.push(row);
+  }
+  return lower.length ? { day: key, lower, higher, incoming: { ...incoming } } : null;
+}
+
+/**
+ * Ölçümü uygular. Düşen değer varsa uygulamaz, çakışmayı döndürür.
+ * mode: 'replace' (gelen değerler) | 'max' (her alanın büyüğü) | 'keep' (kayıtlı kalsın)
+ */
+export function applyMeasurement(key, incoming, { source = 'screenshot', mode = null } = {}) {
+  if (mode === 'keep') return { applied: false, kept: true };
+
+  if (mode === 'max') {
+    const cur = state.days[key] || {};
+    const merged = { ...incoming };
+    for (const f of CUMULATIVE_FIELDS) {
+      const a = numOf(cur[f]);
+      const b = numOf(incoming[f]);
+      if (a != null && b != null) merged[f] = Math.max(a, b);
+      else if (a != null && b == null) delete merged[f];
+    }
+    setDay(key, merged, { source });
+    return { applied: true, mode: 'max' };
+  }
+
+  const conflict = mode === 'replace' ? null : measureConflict(key, incoming);
+  if (conflict) return { applied: false, conflict };
+
+  setDay(key, incoming, { source });
+  return { applied: true };
+}
+
 export function setProfile(patch, { dirty = true } = {}) {
   state.profile = { ...state.profile, ...patch };
   if (dirty) state.dirty.profile = true;
