@@ -367,9 +367,47 @@ function renderUploads() {
         : u.status === 'processed' ? 'okundu' : u.status === 'failed' ? 'okunamadı' : 'atlandı'}</span>`;
     list.appendChild(row);
   }
-  $('uploads-note').textContent = pend
-    ? 'Android uygulamasını açtığında bu görüntüler cihaz üzerinde okunup verilere işlenir.'
-    : '';
+  const failed = uploads.filter((u) => u.status === 'failed');
+  const note = $('uploads-note');
+  note.innerHTML = '';
+  if (pend) {
+    note.textContent = window.SaglikNative
+      ? 'Bekleyen görüntüler bu cihazda okunacak.'
+      : 'Android uygulamasını açtığında bu görüntüler cihaz üzerinde okunup verilere işlenir. '
+        + 'İstersen iPhone kısayoluyla da okuyabilirsin (Ayarlar → iPhone kısayolunu kur).';
+  } else if (failed.length) {
+    note.textContent = `Okunamayan ${failed.length} görüntü var: ${esc(failed[0].error || '')}`;
+  }
+
+  const actions = el('div', 'action-row');
+  actions.style.marginTop = '10px';
+  if (window.SaglikNative && pend) {
+    const now = el('button', 'btn-ghost', 'Şimdi oku');
+    now.onclick = async () => {
+      busy('Görüntüler okunuyor…');
+      try { await window.SaglikNative.processUploads({ quiet: false }); } catch (e) { /* */ }
+      await loadUploads();
+      unbusy();
+      render();
+    };
+    actions.appendChild(now);
+  }
+  if (failed.length) {
+    const retry = el('button', 'btn-ghost', `Tekrar dene (${failed.length})`);
+    retry.onclick = async () => {
+      busy('Kuyruğa alınıyor…');
+      try {
+        for (const u of failed) await api.markUpload(u.id, { status: 'pending', error: null });
+        await loadUploads();
+        if (window.SaglikNative) await window.SaglikNative.processUploads({ quiet: false });
+        await loadUploads();
+      } catch (e) { toast(e.message || 'Olmadı', { error: true }); }
+      unbusy();
+      render();
+    };
+    actions.appendChild(retry);
+  }
+  if (actions.children.length) list.parentElement.appendChild(actions);
 }
 
 /* ================= çizim: analiz ================= */
@@ -607,7 +645,7 @@ function manualSheet(key) {
 
 /* ================= ekran görüntüsü metni yapıştır ================= */
 
-function pasteSheet(key = U.today()) {
+function pasteSheet(key = U.today(), prefill = '') {
   const box = el('div');
   box.appendChild(el('p', 'muted small',
     'iPhone\'da Fotoğraflar uygulamasında ekran görüntüsüne bas, metni seç ve <b>Kopyala</b>ya dokun '
@@ -621,6 +659,7 @@ function pasteSheet(key = U.today()) {
     border: '1px solid var(--line)', borderRadius: '14px', padding: '12px 13px',
     fontSize: '.92rem', lineHeight: '1.5', outline: 'none', fontFamily: 'inherit', resize: 'vertical',
   });
+  if (prefill) ta.value = prefill;
   box.appendChild(ta);
 
   const result = el('div');
@@ -704,6 +743,81 @@ async function uploadImage(file, kind) {
     unbusy();
     toast(err.message || 'Yüklenemedi', { error: true });
   }
+}
+
+/* ================= URL ile veri alma (iPhone kısayolu) =================
+   Kısayol iki biçimde veri verebilir:
+     .../saglik/#adim=8432&mesafe=6.1&kalori=455&egzersiz=32&ayakta=11&gun=2026-07-25
+     .../saglik/#ocr=<Görüntüden Çıkarılan Metin>&gun=2026-07-25
+   İkincisi Apple'ın kendi metin tanımasını kullanır: ekran görüntüsü iPhone'da okunur,
+   sayıları bizim ayrıştırıcı çıkarır. Bulut gerekmez; çevrimdışı da çalışır. */
+
+const HASH_FIELDS = {
+  adim: ['steps', 'int'],
+  steps: ['steps', 'int'],
+  mesafe: ['distance_km', 'float'],
+  distance: ['distance_km', 'float'],
+  kalori: ['active_kcal', 'int'],
+  kcal: ['active_kcal', 'int'],
+  egzersiz: ['exercise_min', 'int'],
+  exercise: ['exercise_min', 'int'],
+  ayakta: ['stand_hours', 'int'],
+  stand: ['stand_hours', 'int'],
+};
+
+async function handleHashIngest() {
+  const raw = location.hash.replace(/^#/, '');
+  if (!raw) return false;
+  let p;
+  try { p = new URLSearchParams(raw); } catch (e) { return false; }
+  if (![...p.keys()].length) return false;
+
+  const clearHash = () => history.replaceState(null, '', location.pathname + location.search);
+  const day = U.isValidKey(p.get('gun') || '') ? p.get('gun') : U.today();
+  const notes = [];
+
+  // 1) doğrudan sayılar
+  const direct = {};
+  for (const [key, [field, kind]] of Object.entries(HASH_FIELDS)) {
+    if (!p.has(key) || direct[field] != null) continue;
+    const v = U.parseNum(p.get(key), kind);
+    if (v != null) direct[field] = v;
+  }
+  if (Object.keys(direct).length) {
+    S.setDay(day, P.toActivityPatch(direct), { source: 'shortcut' });
+    notes.push(`${U.relativeDay(day)}: ${Object.keys(direct).length} değer kaydedildi`);
+  }
+
+  // 2) kilo
+  if (p.has('kilo') || p.has('weight')) {
+    const kgVal = P.normalizeWeightInput(p.get('kilo') || p.get('weight'));
+    if (kgVal != null) {
+      S.setWeight(A.weighDueDay(S.profile(), day), { kg: kgVal }, { source: 'shortcut' });
+      notes.push(`kilo ${U.nf(kgVal, 1)} kg`);
+    }
+  }
+
+  // 3) ekran görüntüsünden çıkarılmış metin (Apple Canlı Metin / Kısayol OCR)
+  const ocr = p.get('ocr') || p.get('metin');
+  if (ocr) {
+    const parsed = P.parseFitnessText(ocr);
+    if (parsed.empty) {
+      clearHash();
+      if (!$('app').hidden) pasteSheet(day, ocr);
+      toast('Metinde tanıdık değer bulunamadı — gözden geçir', { error: true });
+      return true;
+    }
+    S.setDay(day, P.toActivityPatch(parsed.values), { source: 'screenshot' });
+    notes.push(`ekran görüntüsünden ${Object.keys(parsed.values).length} değer okundu`);
+  }
+
+  clearHash();
+  if (!notes.length) return false;
+
+  if (!$('app').hidden) render();
+  toast(notes.join(' · '), { ms: 3200 });
+  if (cloudOn()) { try { await S.push(api); } catch (e) { /* sonra eşitlenir */ } }
+  return true;
 }
 
 /* ================= bulut bağlantısı ================= */
@@ -1175,6 +1289,9 @@ async function boot() {
   } else {
     showAuth();
   }
+
+  await handleHashIngest();
+  window.addEventListener('hashchange', () => { handleHashIngest(); });
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

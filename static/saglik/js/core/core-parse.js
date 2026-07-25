@@ -46,6 +46,20 @@ const METRICS = [
 
 const MI_TO_KM = 1.609344;
 
+/**
+ * OCR çıktısını okunur hale getirir: satır sonu normalize, fazla boşluk temizliği.
+ * ML Kit / Apple Canlı Metin çıktısı doğrudan buraya verilebilir.
+ */
+export function cleanText(raw) {
+  return String(raw ?? '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((l) => l.replace(/[ \t ]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 /** "455/500" → 455 · "8.432" → 8432 */
 function firstNumber(text, kind) {
   const m = String(text).match(/-?[\d][\d.,]*/);
@@ -72,7 +86,7 @@ function numbersIn(text, kind) {
  *   hits: her ölçüt için hangi satırdan geldiği (gözden geçirme ekranında gösterilir)
  */
 export function parseFitnessText(raw) {
-  const lines = String(raw || '')
+  const lines = cleanText(raw)
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
