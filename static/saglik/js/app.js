@@ -10,6 +10,7 @@ import {
   setCloudConfig, clearCloudConfig, testCloudConfig,
 } from './core/config.js';
 import { barChart, lineChart, sparkline } from './charts.js';
+import { recognizeImage } from './ocr-web.js';
 
 const $ = (id) => document.getElementById(id);
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -372,24 +373,18 @@ function renderUploads() {
   note.innerHTML = '';
   if (pend) {
     note.textContent = window.SaglikNative
-      ? 'Bekleyen görüntüler bu cihazda okunacak.'
-      : 'Android uygulamasını açtığında bu görüntüler cihaz üzerinde okunup verilere işlenir. '
-        + 'İstersen iPhone kısayoluyla da okuyabilirsin (Ayarlar → iPhone kısayolunu kur).';
+      ? 'Bekleyen görüntüler bu cihazda (ML Kit ile) okunacak — “Şimdi oku”ya dokun.'
+      : '“Şimdi oku”ya dokun: görüntüler bu tarayıcıda okunur. İlk okumada metin tanıma '
+        + 'bileşeni indirilir (bir kerelik, ~2 MB).';
   } else if (failed.length) {
     note.textContent = `Okunamayan ${failed.length} görüntü var: ${esc(failed[0].error || '')}`;
   }
 
   const actions = el('div', 'action-row');
   actions.style.marginTop = '10px';
-  if (window.SaglikNative && pend) {
-    const now = el('button', 'btn-ghost', 'Şimdi oku');
-    now.onclick = async () => {
-      busy('Görüntüler okunuyor…');
-      try { await window.SaglikNative.processUploads({ quiet: false }); } catch (e) { /* */ }
-      await loadUploads();
-      unbusy();
-      render();
-    };
+  if (pend) {
+    const now = el('button', 'btn-primary', 'Şimdi oku');
+    now.onclick = () => readPendingNow();
     actions.appendChild(now);
   }
   if (failed.length) {
@@ -399,8 +394,8 @@ function renderUploads() {
       try {
         for (const u of failed) await api.markUpload(u.id, { status: 'pending', error: null });
         await loadUploads();
-        if (window.SaglikNative) await window.SaglikNative.processUploads({ quiet: false });
-        await loadUploads();
+        unbusy();
+        await readPendingNow();
       } catch (e) { toast(e.message || 'Olmadı', { error: true }); }
       unbusy();
       render();
@@ -714,6 +709,208 @@ function pasteSheet(key = U.today(), prefill = '') {
   setTimeout(() => ta.focus(), 120);
 }
 
+/* ================= bekleyen yüklemeleri bu cihazda oku ================= */
+
+/** Android'de native ML Kit, web'de tarayıcı OCR'ı kullanılır. */
+async function readPendingNow() {
+  if (window.SaglikNative?.processUploads) {
+    busy('Görüntüler okunuyor…');
+    try { await window.SaglikNative.processUploads({ quiet: false }); } catch (e) { /* */ }
+    unbusy();
+    await loadUploads();
+    render();
+    return;
+  }
+  await processPendingInBrowser();
+}
+
+async function processPendingInBrowser({ quiet = false } = {}) {
+  if (!cloudOn()) { toast('Bunun için hesabınla giriş yapmış olmalısın', { error: true }); return; }
+  const pend = uploads.filter((u) => u.status === 'pending').slice(0, 4);
+  if (!pend.length) { if (!quiet) toast('Bekleyen görüntü yok'); return; }
+
+  let done = 0;
+  let failed = 0;
+
+  for (const up of pend) {
+    let text = '';
+    try {
+      busy('Görüntü indiriliyor…');
+      const blob = await api.downloadImage(up.path);
+      const raw = await recognizeImage(blob, (pct, durum) => {
+        $('busy-text').textContent = `${durum}… %${Math.round(pct)}`;
+      });
+      text = P.cleanText(raw);
+      unbusy();
+
+      const day = up.day && U.isValidKey(up.day) ? up.day : U.dayKey(new Date(up.created_at));
+
+      if (up.kind === 'scale') {
+        const wr = A.weightReport(S.state.weights, S.profile());
+        const kgVal = P.parseWeightText(text, { hint: wr.empty ? null : wr.latest.kg });
+        if (kgVal == null) {
+          await api.markUpload(up.id, {
+            status: 'failed', ocr_text: text.slice(0, 2000), error: 'Tartıdaki sayı okunamadı',
+          });
+          failed++;
+          continue;
+        }
+        S.setWeight(A.weighDueDay(S.profile(), day), { kg: kgVal, source: 'photo', photo_path: up.path });
+        await api.markUpload(up.id, { status: 'processed', parsed: { kg: kgVal }, ocr_text: text.slice(0, 2000) });
+        toast(`Tartıdan <b>${U.nf(kgVal, 1)} kg</b> okundu`);
+        done++;
+      } else {
+        const parsed = P.parseFitnessText(text);
+        if (parsed.empty) {
+          await api.markUpload(up.id, {
+            status: 'failed', ocr_text: text.slice(0, 2000),
+            error: 'Ekran görüntüsünde tanıdık değer bulunamadı',
+          });
+          failed++;
+          continue;
+        }
+        await applyOrAsk(day, P.toActivityPatch(parsed.values),
+          { source: 'screenshot', label: 'yüklenen görüntü' });
+        await api.markUpload(up.id, {
+          status: 'processed', parsed: parsed.values, ocr_text: text.slice(0, 2000),
+        });
+        done++;
+      }
+    } catch (e) {
+      unbusy();
+      try {
+        await api.markUpload(up.id, { status: 'failed', error: String(e?.message || e).slice(0, 300) });
+      } catch (e2) { /* yoksay */ }
+      failed++;
+    }
+  }
+
+  unbusy();
+  await loadUploads();
+  render();
+  if (!quiet) {
+    if (done) toast(`${done} görüntü okundu`);
+    else if (failed) toast('Görüntüler okunamadı — değerleri elle girebilirsin', { error: true });
+  }
+  if (done) { try { await S.push(api); } catch (e) { /* sonra */ } }
+}
+
+/* ================= ekran görüntüsü: galeriden seç ve oku ================= */
+
+function screenshotSheet(file, key = U.today()) {
+  const box = el('div');
+
+  const shot = el('div');
+  Object.assign(shot.style, {
+    borderRadius: '14px', overflow: 'hidden', border: '1px solid var(--line)',
+    background: 'var(--card-2)', maxHeight: '30vh', display: 'grid', placeItems: 'center',
+  });
+  const img = document.createElement('img');
+  img.alt = 'Seçilen ekran görüntüsü';
+  Object.assign(img.style, { width: '100%', maxHeight: '30vh', objectFit: 'contain', display: 'block' });
+  img.src = URL.createObjectURL(file);
+  shot.appendChild(img);
+  box.appendChild(shot);
+
+  const status = el('div', 'ocr-status');
+  status.innerHTML = '<span class="spin"></span><span id="shot-status">Metin okunuyor…</span>';
+  status.style.marginTop = '12px';
+  box.appendChild(status);
+
+  const bar = el('div');
+  Object.assign(bar.style, {
+    height: '4px', borderRadius: '2px', background: 'var(--line)',
+    overflow: 'hidden', marginTop: '8px',
+  });
+  const fill = el('i');
+  Object.assign(fill.style, { display: 'block', height: '100%', width: '2%', background: 'var(--accent)' });
+  bar.appendChild(fill);
+  box.appendChild(bar);
+
+  const result = el('div');
+  result.style.marginTop = '12px';
+  box.appendChild(result);
+
+  const saveBtn = el('button', 'btn-primary wide', `${U.relativeDay(key)} olarak kaydet`);
+  saveBtn.style.marginTop = '12px';
+  saveBtn.hidden = true;
+  box.appendChild(saveBtn);
+
+  const pasteBtn = el('button', 'btn-ghost wide', 'Metni elle yapıştır / düzelt');
+  pasteBtn.style.marginTop = '8px';
+  box.appendChild(pasteBtn);
+
+  const manualBtn = el('button', 'btn-ghost wide', 'Değerleri elle gir');
+  manualBtn.style.marginTop = '8px';
+  manualBtn.onclick = () => manualSheet(key);
+  box.appendChild(manualBtn);
+
+  let uploadBtn = null;
+  if (cloudOn()) {
+    uploadBtn = el('button', 'set-action', 'Görseli yükle (Android uygulaması okusun)');
+    uploadBtn.style.marginTop = '12px';
+    uploadBtn.onclick = () => { closeSheet(); uploadImage(file, 'fitness'); };
+    box.appendChild(uploadBtn);
+  }
+
+  openSheet('Ekran görüntüsü', box);
+
+  let text = '';
+  let parsed = null;
+
+  pasteBtn.onclick = () => pasteSheet(key, text);
+
+  saveBtn.onclick = async () => {
+    if (!parsed || parsed.empty) return;
+    const values = P.toActivityPatch(parsed.values);
+    closeSheet();
+    const ok = await applyOrAsk(key, values, { source: 'screenshot', label: 'ekran görüntüsü' });
+    render();
+    if (ok) {
+      toast('Ekran görüntüsünden <b>kaydedildi</b>');
+      if (cloudOn()) { try { await S.push(api); } catch (e) { /* sonra */ } }
+    }
+  };
+
+  const setStatus = (cls, msg) => {
+    status.className = 'ocr-status' + (cls ? ' ' + cls : '');
+    const span = document.getElementById('shot-status');
+    if (span) span.innerHTML = msg;
+  };
+
+  recognizeImage(file, (pct, durum) => {
+    fill.style.width = Math.max(2, Math.min(100, pct)) + '%';
+    setStatus('', `${durum}… %${Math.round(pct)}`);
+  }).then((raw) => {
+    text = P.cleanText(raw);
+    bar.hidden = true;
+    parsed = P.parseFitnessText(text);
+    if (parsed.empty) {
+      setStatus('warn', 'Tanıdık değer bulunamadı. Metni düzeltebilir ya da elle girebilirsin.');
+      pasteBtn.className = 'btn-primary wide';
+      return;
+    }
+    const found = el('div', 'metric-grid');
+    for (const m of METRICS) {
+      const v = parsed.values[m.key];
+      if (v == null) continue;
+      const cell = el('div', 'metric');
+      cell.style.setProperty('--mc', m.color);
+      cell.innerHTML = `<div class="metric-label">${m.label}</div>`
+        + `<div class="metric-value">${m.fmt(v)}<small>${m.unit || ''}</small></div>`;
+      found.appendChild(cell);
+    }
+    result.appendChild(found);
+    setStatus('ok', `${Object.keys(parsed.values).length} değer okundu — gözden geçir.`);
+    saveBtn.hidden = false;
+  }).catch((err) => {
+    bar.hidden = true;
+    setStatus('warn', `Okuma yapılamadı (${esc(err.message || 'bilinmeyen hata')}). `
+      + 'Metni yapıştırabilir ya da değerleri elle girebilirsin.');
+    pasteBtn.className = 'btn-primary wide';
+  });
+}
+
 /* ================= görsel yükleme ================= */
 
 async function uploadImage(file, kind) {
@@ -772,20 +969,24 @@ function conflictSheet(conflict, { source = 'screenshot', label = 'Yeni okuma' }
 
   const table = el('div', 'set-box');
   table.style.marginTop = '12px';
+  const GRID = 'display:grid;grid-template-columns:1fr 84px 84px;align-items:center;gap:8px;';
   const head = el('div', 'set-row');
-  head.innerHTML = '<div class="set-label"><b>Ölçüt</b></div>'
-    + '<div style="width:78px;text-align:right;font-size:.78rem;color:var(--text-faint);font-weight:700">KAYITLI</div>'
-    + '<div style="width:78px;text-align:right;font-size:.78rem;color:var(--accent);font-weight:700">YENİ</div>';
+  head.setAttribute('style', GRID + 'padding:10px 13px;');
+  head.innerHTML = '<div style="font-size:.78rem;color:var(--text-faint);font-weight:700">ÖLÇÜT</div>'
+    + '<div style="text-align:right;font-size:.78rem;color:var(--text-faint);font-weight:700">KAYITLI</div>'
+    + '<div style="text-align:right;font-size:.78rem;color:var(--accent);font-weight:700">YENİ</div>';
   table.appendChild(head);
 
   const fmtVal = (f, v) => (f === 'distance_km' ? U.nf(v, 1) : U.nf(v));
   for (const row of [...conflict.lower, ...conflict.higher]) {
     const r = el('div', 'set-row');
+    r.setAttribute('style', GRID + 'padding:11px 13px;');
     const down = row.next < row.old;
-    r.innerHTML = `<div class="set-label"><b>${esc(row.label)}</b></div>`
-      + `<div style="width:78px;text-align:right;font-variant-numeric:tabular-nums">${fmtVal(row.field, row.old)}</div>`
-      + `<div style="width:78px;text-align:right;font-variant-numeric:tabular-nums;`
-      + `color:${down ? 'var(--danger)' : 'var(--accent)'};font-weight:700">${fmtVal(row.field, row.next)}</div>`;
+    r.innerHTML = `<div style="font-size:.9rem;font-weight:600">${esc(row.label)}</div>`
+      + `<div style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-dim)">`
+      + `${fmtVal(row.field, row.old)}</div>`
+      + `<div style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700;`
+      + `color:${down ? 'var(--danger)' : 'var(--accent)'}">${fmtVal(row.field, row.next)}</div>`;
     table.appendChild(r);
   }
   box.appendChild(table);
@@ -1356,19 +1557,42 @@ function wire() {
     setTimeout(() => syncNow({ quiet: true }), 6000);
   };
   $('btn-manual').onclick = () => manualSheet(U.today());
-  $('btn-upload-fitness').onclick = () => {
-    // iPhone/iPad: Apple'ın kendi metin tanıması anında sonuç verir, Android beklemeye gerek yok
-    if (isIOS || !cloudOn()) pasteSheet(U.today());
-    else $('file-fitness').click();
-  };
+  $('btn-upload-fitness').onclick = () => $('file-fitness').click();
   $('file-fitness').onchange = (e) => {
-    uploadImage(e.target.files?.[0], 'fitness');
+    const f = e.target.files?.[0];
     e.target.value = '';
+    if (!f) return;
+    // Android uygulamasında native ML Kit daha hızlı: yükle, işçi okusun.
+    if (isAndroidApp() && cloudOn()) uploadImage(f, 'fitness');
+    else screenshotSheet(f, U.today());
   };
   $('btn-upload-scale').onclick = () => $('file-scale').click();
-  $('file-scale').onchange = (e) => {
-    uploadImage(e.target.files?.[0], 'scale');
+  $('file-scale').onchange = async (e) => {
+    const f = e.target.files?.[0];
     e.target.value = '';
+    if (!f) return;
+    if (isAndroidApp() && cloudOn()) { uploadImage(f, 'scale'); return; }
+    // tartı ekranını tarayıcıda oku
+    busy('Tartı okunuyor…');
+    try {
+      const raw = await recognizeImage(f);
+      unbusy();
+      const wr = A.weightReport(S.state.weights, S.profile());
+      const kgVal = P.parseWeightText(P.cleanText(raw), { hint: wr.empty ? null : wr.latest.kg });
+      const due = A.weighDueDay(S.profile(), U.today());
+      if (kgVal == null) {
+        toast('Tartıdaki sayı okunamadı — elle yazabilirsin', { error: true });
+        $('weight-input').focus();
+        return;
+      }
+      S.setWeight(due, { kg: kgVal }, { source: 'photo' });
+      render();
+      toast(`${U.relativeDay(due)} için <b>${U.nf(kgVal, 1)} kg</b> okundu`);
+      if (cloudOn()) { try { await S.push(api); } catch (err) { /* sonra */ } }
+    } catch (err) {
+      unbusy();
+      toast('Fotoğraf okunamadı — kiloyu elle yaz', { error: true });
+    }
   };
 
   $('weight-save').onclick = async () => {
@@ -1409,6 +1633,9 @@ function wire() {
   window.SaglikPanel = {
     applyOrAsk,
     conflictSheet,
+    screenshotSheet,
+    pasteSheet,
+    manualSheet,
     render,
     toast,
   };
