@@ -1,5 +1,6 @@
 ---
 title: Ürün Türü ve Fenolojik Evre Tespiti
+image: /og/crop-phenology-detection.png
 ---
 Bamya, biber ve patlıcan bitkilerinin dört gelişim evresini (tohum, tomurcuk, çiçek, hasat edilebilir meyve) tespit eden 12 sınıflı bir derin öğrenme çerçevesi geliştirdim. Muğla'daki tarım alanlarından topladığım görüntüleri açık kaynak verilerle zenginleştirerek literatüre yeni bir etiketli veri seti kazandırdım.
 

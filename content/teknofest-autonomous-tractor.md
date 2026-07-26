@@ -1,5 +1,6 @@
 ---
 title: TEKNOFEST Autonomous Tractor Competition
+image: /og/teknofest-autonomous-tractor.png
 ---
 An image processing system that detects weeds and lettuce plants, with a GPS-based precise positioning and autonomous navigation algorithm, running in real time on a Jetson Nano.
 

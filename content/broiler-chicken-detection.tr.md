@@ -1,5 +1,6 @@
 ---
 title: Broiler Tavuklarda Gelişim Evresi ve Kesim Zamanı Tespiti
+image: /og/broiler-chicken-detection.png
 ---
 Tavuk çiftliklerinde kesim zamanı gelen tavukları otomatik tespit eden, YOLO tabanlı bir yapay zeka sistemi geliştirdim. Gerçek çiftlik ortamından veri toplama ve model eğitimi süreçlerini yönettim.
 

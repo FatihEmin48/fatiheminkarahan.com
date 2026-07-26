@@ -1,5 +1,6 @@
 ---
 title: YOLO ile Yumurta Tespiti ve Sayımı
+image: /og/egg-detection.png
 ---
 Holluktaki yumurtaları otomatik olarak tespit edip sayan, tamamen tarayıcıda istemci tarafında çalışan YOLO tabanlı bir bilgisayarlı görü sistemi.
 

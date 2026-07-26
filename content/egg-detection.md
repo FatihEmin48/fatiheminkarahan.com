@@ -1,5 +1,6 @@
 ---
 title: Egg Detection and Counting with YOLO
+image: /og/egg-detection.png
 ---
 A YOLO-based computer vision system that detects eggs in a coop and counts them automatically, running entirely client-side in the browser.
 

@@ -1,5 +1,6 @@
 ---
 title: Crop Type and Phenological Stage Detection
+image: /og/crop-phenology-detection.png
 ---
 An end-to-end deep learning framework that detects four growth stages (seed, bud, flower, harvestable fruit) of okra, pepper, and eggplant plants, with a new labeled dataset collected from agricultural fields in Muğla.
 

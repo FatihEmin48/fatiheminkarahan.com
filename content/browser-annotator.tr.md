@@ -1,5 +1,6 @@
 ---
 title: Tarayıcıda Görüntü Etiketleme Aracı
+image: /og/browser-annotator.png
 ---
 Nesne tespiti veri setleri hazırlamak için tamamen tarayıcıda çalışan hafif bir etiketleme aracı. Kutu çizme, taşıma, yeniden boyutlandırma, özel sınıf tanımlama ve doğrudan YOLO ya da COCO formatında dışa aktarma imkânı sunar.
 

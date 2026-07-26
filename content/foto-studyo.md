@@ -1,5 +1,6 @@
 ---
 title: Photo Studio
+image: /og/foto-studyo.png
 ---
 A photo filter and editing studio that runs entirely in the browser. Everything is processed on the device GPU: photos are never uploaded to a server, and the app works offline. The same URL opens on phone and desktop, and installs like a native app through "Add to Home Screen".
 

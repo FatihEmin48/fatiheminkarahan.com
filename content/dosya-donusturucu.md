@@ -1,5 +1,6 @@
 ---
 title: File Converter
+image: /og/dosya-donusturucu.png
 ---
 A converter for PDF, Word, Excel, image and text files that runs entirely in the browser. Nothing is uploaded: every conversion happens on the device, and the app works offline.
 

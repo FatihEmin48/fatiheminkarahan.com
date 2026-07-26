@@ -1,6 +1,7 @@
 ---
 title: Domates Olgunluk Tespiti
 type: domates-tespiti
+image: /og/domates-tespiti.png
 ---
 Domateslerin gelişim ve olgunluk evrelerini (tomurcuk, çiçek, yeşil, turuncu, kırmızı) görüntüden tespit eden YOLO tabanlı bir derin öğrenme modeli. Önce mobil uygulama için geliştirildi, şimdi burada etkileşimli bir demo olarak da sunuluyor.
 

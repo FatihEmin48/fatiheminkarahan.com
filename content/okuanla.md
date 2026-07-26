@@ -1,5 +1,6 @@
 ---
 title: OkuAnla Turkish Document Intelligence
+image: /og/okuanla.png
 ---
 A web application that reads Turkish documents with OCR and makes sense of them. It extracts entities, summaries, sentiment and structured fields from invoices, receipts and IDs using Turkish NLP. It works with both images and PDFs.
 

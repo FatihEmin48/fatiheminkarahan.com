@@ -1,5 +1,6 @@
 ---
 title: Health Panel
+image: /og/saglik-panel.png
 ---
 An offline-first health tracker that brings daily activity, weekly weight and week/month/year analysis into a single screen. iPhone Health data (steps, distance, active calories, exercise minutes) is pushed automatically through a Shortcuts automation, or read from an Apple Fitness screenshot with on-device OCR. The Android build sends the reminders, runs Google ML Kit text recognition on uploaded screenshots and reads the phone's own step data through Health Connect.
 

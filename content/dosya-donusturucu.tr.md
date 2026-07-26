@@ -1,5 +1,6 @@
 ---
 title: Dosya Dönüştürücü
+image: /og/dosya-donusturucu.png
 ---
 PDF, Word, Excel, resim ve metin dosyalarını birbirine çeviren, tamamen tarayıcıda çalışan dönüştürücü. Dosyalar yüklenmez, sunucuya gitmez; her dönüşüm cihazın içinde yapılır ve uygulama çevrimdışı çalışır.
 

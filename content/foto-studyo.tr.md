@@ -1,5 +1,6 @@
 ---
 title: Foto Stüdyo
+image: /og/foto-studyo.png
 ---
 Tarayıcıda çalışan fotoğraf filtresi ve düzenleme stüdyosu. Tüm işlem cihazın ekran kartında yapılır: fotoğraflar hiçbir sunucuya yüklenmez, uygulama çevrimdışı da çalışır. Aynı adres telefonda ve bilgisayarda açılır, "Ana ekrana ekle" ile uygulama gibi kurulur.
 

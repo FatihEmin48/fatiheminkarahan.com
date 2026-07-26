@@ -1,5 +1,6 @@
 ---
 title: Hayatta Kalma
+image: /og/hayatta-kalma.png
 ---
 A top-down horde-survival browser game. Auto-attacking weapons fight off endless waves of enemies while you collect XP and level up. Enemies start out weak and grow stronger over time and as you level up, so the challenge keeps pace with you. Playable on desktop with a keyboard, or on mobile with an on-screen joystick.
 

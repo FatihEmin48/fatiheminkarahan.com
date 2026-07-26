@@ -1,5 +1,6 @@
 ---
 title: Browser-Based Image Annotation Tool
+image: /og/browser-annotator.png
 ---
 A lightweight image annotation tool for building object detection datasets, running entirely in the browser. Draw, move, and resize bounding boxes, manage custom classes, and export directly to YOLO or COCO format.
 

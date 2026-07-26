@@ -1,5 +1,6 @@
 ---
 title: Broiler Chicken Growth Stage & Slaughter Time Detection
+image: /og/broiler-chicken-detection.png
 ---
 A YOLO-based deep learning model that automatically detects weekly growth stages and slaughter time in broiler chickens on poultry farms, from data collected in a real farm environment.
 

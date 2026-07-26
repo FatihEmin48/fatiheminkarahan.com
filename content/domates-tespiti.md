@@ -1,6 +1,7 @@
 ---
 title: Tomato Ripeness Detection
 type: domates-tespiti
+image: /og/domates-tespiti.png
 ---
 A YOLO-based deep learning model that detects tomato growth and ripeness stages (bud, flower, green, orange, red) from images, originally built for a mobile application and now available here as an interactive demo.
 

@@ -1,5 +1,6 @@
 ---
 title: Altın Madeni
+image: /og/altin-madeni.png
 ---
 Tarayıcıda oynanan bir idle/artırımlı (incremental) oyun. Tıklayarak altın kaz, madenciler ve makineler satın al, üretimini otomatikleştir ve yükseltmelerle madenci imparatorluğunu büyüt. Maliyetler her alımda artar, üreticiler saniyede otomatik altın üretir. Oyun otomatik kaydedilir ve sen yokken bile madencilerin çalışmaya devam eder (offline kazanç). Masaüstünde ve telefonda oynanabilir.
 

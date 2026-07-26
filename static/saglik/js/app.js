@@ -2097,6 +2097,20 @@ async function boot() {
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
+
+  // Otomatik testin ve ekran görüntüsü aracının tutunacağı yüzey.
+  // Depoya dışarıdan localStorage üzerinden yazmak işe yaramaz: save() gecikmeli
+  // çalıştığı için bellekteki durum az sonra üstüne yazıyor. Buradan bellek
+  // güncellenip render() çağrılmalı.
+  window.SP = {
+    S, U,
+    render,
+    showApp,
+    get view() { return view; },
+    set view(v) { view = v; },
+    ready: true,
+  };
+  window.dispatchEvent(new Event('sp-ready'));
 }
 
 document.addEventListener('DOMContentLoaded', boot);

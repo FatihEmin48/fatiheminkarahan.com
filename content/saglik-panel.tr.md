@@ -1,5 +1,6 @@
 ---
 title: Sağlık Panel
+image: /og/saglik-panel.png
 ---
 Günlük spor verisini, haftalık kiloyu ve hafta/ay/yıl analizini tek ekranda toplayan, çevrimdışı çalışan sağlık takip uygulaması. iPhone Sağlık verileri (adım, mesafe, aktif kalori, egzersiz dakikası) Kısayollar otomasyonuyla otomatik aktarılır; istenirse Apple Fitness ekran görüntüsü cihaz üzerinde OCR ile okunur. Android sürümü hatırlatıcı bildirimleri gönderir, yüklenen ekran görüntülerini Google ML Kit ile metne çevirir ve telefonun kendi adım verisini Health Connect üzerinden alır.
 
