@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0d0f14">
+<meta name="description" content="Tarayıcıda çalışan fotoğraf filtresi ve düzenleme stüdyosu. Telefon ve bilgisayarda, internetsiz.">
+<title>Foto Stüdyo</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◧</span>
+      <span class="brand-name">Foto Stüdyo</span>
+    </div>
+
+    <div class="topbar-actions">
+      <button class="btn ghost" id="btnOpen" title="Fotoğraf aç (O)">
+        <span class="ic">📂</span><span class="lbl">Aç</span>
+      </button>
+      <button class="btn icon" id="btnUndo" title="Geri al (Ctrl+Z)" disabled>↶</button>
+      <button class="btn icon" id="btnRedo" title="İleri al (Ctrl+Shift+Z)" disabled>↷</button>
+      <button class="btn icon" id="btnCompare" title="Orijinali göster (basılı tut / C)">👁</button>
+      <button class="btn icon" id="btnReset" title="Tüm ayarları sıfırla">⟲</button>
+      <button class="btn primary" id="btnSave" title="Kaydet (Ctrl+S)">
+        <span class="ic">⬇</span><span class="lbl">Kaydet</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="view"></canvas>
+      <div class="crop-overlay hidden" id="cropOverlay"></div>
+      <div class="badge-compare hidden" id="compareBadge">ORİJİNAL</div>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+      <div class="dz-inner">
+        <div class="dz-icon">🖼</div>
+        <h2>Fotoğrafını buraya bırak</h2>
+        <p>ya da <button class="link" id="dzPick">cihazdan seç</button> — panodan <kbd>Ctrl</kbd>+<kbd>V</kbd> ile de yapıştırabilirsin.</p>
+        <p class="dz-note">Her şey cihazında işlenir; hiçbir görsel sunucuya gitmez.</p>
+      </div>
+    </div>
+
+    <button class="zoom-reset" id="btnZoomReset" hidden title="Sığdır (0)">⤢ Sığdır</button>
+
+    <div class="stage-hud" id="stageHud">
+      <span id="hudSize">—</span>
+      <span class="dot">·</span>
+      <span id="hudZoom">—</span>
+    </div>
+  </main>
+
+  <aside class="panel" id="panel">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="filters"><span>✦</span>Filtreler</button>
+      <button class="tab" data-tab="adjust"><span>🎚</span>Ayarlar</button>
+      <button class="tab" data-tab="crop"><span>⛶</span>Kırp</button>
+      <button class="tab" data-tab="curve"><span>📈</span>Eğri</button>
+      <button class="tab" data-tab="text"><span>🅣</span>Metin</button>
+      <button class="tab" data-tab="info"><span>ℹ</span>Bilgi</button>
+    </nav>
+
+    <div class="panel-body" id="panelBody">
+
+      <section class="tabpage active" data-page="filters">
+        <div class="row-between">
+          <h3>Hazır Filtreler</h3>
+          <label class="mini-field">
+            Şiddet
+            <input type="range" id="presetStrength" min="0" max="100" value="100" class="mini-range">
+            <output id="presetStrengthOut">100</output>
+          </label>
+        </div>
+        <div class="preset-grid" id="presetGrid"></div>
+
+        <div class="row-between mt">
+          <h3>Kendi Ayarların</h3>
+          <button class="btn tiny" id="btnSavePreset">＋ Kaydet</button>
+        </div>
+        <div class="preset-grid" id="userPresetGrid"></div>
+        <p class="hint" id="userPresetHint">Beğendiğin ayarları isimlendirip kaydet, sonraki fotoğraflarda tek dokunuşla uygula.</p>
+      </section>
+
+      <section class="tabpage" data-page="adjust">
+        <div class="histo-wrap">
+          <canvas id="histogram"></canvas>
+          <div class="histo-meta"><span id="clipInfo"></span></div>
+        </div>
+        <div class="row-between">
+          <button class="btn tiny" id="btnAuto">✨ Otomatik iyileştir</button>
+          <button class="btn tiny ghost" id="btnResetAdjust">Ayarları sıfırla</button>
+        </div>
+        <div id="adjustGroups"></div>
+      </section>
+
+      <section class="tabpage" data-page="crop">
+        <h3>En-Boy Oranı</h3>
+        <div class="chip-row" id="aspectRow"></div>
+
+        <h3 class="mt">Döndür &amp; Çevir</h3>
+        <div class="chip-row">
+          <button class="chip" id="btnRotL">↺ 90° sol</button>
+          <button class="chip" id="btnRotR">↻ 90° sağ</button>
+          <button class="chip" id="btnFlipX">⇋ Yatay</button>
+          <button class="chip" id="btnFlipY">⇵ Dikey</button>
+        </div>
+
+        <h3 class="mt">Düzeltme</h3>
+        <div class="slider" data-key="angle">
+          <div class="slider-head">
+            <label>Açı</label>
+            <output id="angleOut">0°</output>
+          </div>
+          <input type="range" id="angleRange" min="-45" max="45" step="0.1" value="0">
+        </div>
+
+        <div class="chip-row mt">
+          <button class="chip" id="btnCropReset">Kırpmayı sıfırla</button>
+          <button class="chip" id="btnCropApply">Kırpmayı uygula</button>
+        </div>
+        <p class="hint">Kırpma çerçevesini köşelerden tutup sürükleyebilirsin. Bu sekmeden çıkınca kırpma otomatik uygulanır.</p>
+      </section>
+
+      <section class="tabpage" data-page="curve">
+        <div class="chip-row" id="curveChannels">
+          <button class="chip active" data-ch="rgb">RGB</button>
+          <button class="chip ch-r" data-ch="r">Kırmızı</button>
+          <button class="chip ch-g" data-ch="g">Yeşil</button>
+          <button class="chip ch-b" data-ch="b">Mavi</button>
+        </div>
+        <div class="curve-wrap">
+          <canvas id="curveCanvas"></canvas>
+        </div>
+        <div class="chip-row" id="curvePresets"></div>
+        <p class="hint">Eğriye dokunarak nokta ekle, sürükleyerek taşı, çift dokunuşla sil.</p>
+      </section>
+
+      <section class="tabpage" data-page="text">
+        <div class="chip-row">
+          <button class="chip" id="btnAddText">＋ Metin ekle</button>
+          <button class="chip" id="btnAddWatermark">＋ Filigran</button>
+        </div>
+
+        <h3 class="mt">Çıkartmalar</h3>
+        <div class="sticker-row" id="stickerRow"></div>
+
+        <h3 class="mt">Katmanlar</h3>
+        <div class="layer-list" id="layerList"></div>
+        <p class="hint" id="layerHint">Henüz katman yok. Fotoğrafın üstündeki yazıyı sürükleyerek taşıyabilir, köşedeki tutamaçla döndürüp ölçekleyebilirsin.</p>
+
+        <div id="overlayEditor" hidden>
+          <div class="row-between mt">
+            <h3>Seçili Katman</h3>
+            <div class="chip-row">
+              <button class="chip tiny" id="btnLayerDup" title="Kopyala">⧉</button>
+              <button class="chip tiny" id="btnLayerDel" title="Sil">🗑</button>
+            </div>
+          </div>
+          <label class="field"><span>Yazı</span><textarea id="ovText" rows="2"></textarea></label>
+          <div class="chip-row" id="ovFontRow"></div>
+          <div id="ovSliders"></div>
+          <div class="color-row" id="ovColors"></div>
+        </div>
+
+        <h3 class="mt">Çerçeve</h3>
+        <div class="chip-row" id="frameRow"></div>
+        <div id="frameSliders"></div>
+        <div class="color-row" id="frameColors"></div>
+      </section>
+
+      <section class="tabpage" data-page="info">
+        <h3>Görüntü</h3>
+        <dl class="info-list" id="infoList"></dl>
+
+        <h3 class="mt">Kısayollar</h3>
+        <dl class="info-list">
+          <dt>O</dt><dd>Fotoğraf aç</dd>
+          <dt>Ctrl+S</dt><dd>Kaydet</dd>
+          <dt>Ctrl+Z / Ctrl+Shift+Z</dt><dd>Geri / İleri al</dd>
+          <dt>C</dt><dd>Orijinali göster (basılı tut)</dd>
+          <dt>R</dt><dd>90° sağa döndür</dd>
+          <dt>1 – 6</dt><dd>Sekmeler arası geçiş</dd>
+          <dt>Delete</dt><dd>Seçili metin katmanını sil</dd>
+          <dt>+ / − / 0</dt><dd>Yakınlaş / uzaklaş / sığdır</dd>
+          <dt>Ctrl+V</dt><dd>Panodan yapıştır</dd>
+        </dl>
+
+        <h3 class="mt">Uygulama</h3>
+        <p class="hint">Tüm işlemler cihazının ekran kartında yapılır; fotoğraflar hiçbir sunucuya gönderilmez. Çevrimdışı da çalışır — telefonda “Ana ekrana ekle” diyerek uygulama gibi kurabilirsin.</p>
+        <button class="btn tiny ghost" id="btnInstall" hidden>Uygulamayı kur</button>
+      </section>
+
+    </div>
+  </aside>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" hidden>
+
+<dialog class="modal" id="exportDialog">
+  <form method="dialog" class="modal-inner">
+    <h2>Kaydet</h2>
+
+    <label class="field">
+      <span>Dosya adı</span>
+      <input type="text" id="expName" value="foto">
+    </label>
+
+    <label class="field">
+      <span>Biçim</span>
+      <select id="expFormat"></select>
+    </label>
+
+    <label class="field" id="qualityField">
+      <span>Kalite <output id="expQualityOut">92</output></span>
+      <input type="range" id="expQuality" min="40" max="100" value="92">
+    </label>
+
+    <label class="field">
+      <span>Boyut</span>
+      <select id="expSize">
+        <option value="0">Tam çözünürlük</option>
+        <option value="4096">Uzun kenar 4096 px</option>
+        <option value="2560">Uzun kenar 2560 px</option>
+        <option value="2048">Uzun kenar 2048 px</option>
+        <option value="1080">Uzun kenar 1080 px</option>
+        <option value="720">Uzun kenar 720 px</option>
+      </select>
+    </label>
+
+    <p class="modal-meta" id="expMeta">—</p>
+
+    <div class="modal-actions">
+      <button class="btn ghost" value="cancel" type="submit">Vazgeç</button>
+      <button class="btn ghost" id="btnCopyClip" type="button">Panoya kopyala</button>
+      <button class="btn ghost" id="btnShare" type="button" hidden>Paylaş</button>
+      <button class="btn primary" id="btnDoExport" type="button">İndir</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="modal" id="presetDialog">
+  <form method="dialog" class="modal-inner">
+    <h2>Ayarları kaydet</h2>
+    <label class="field">
+      <span>Filtre adı</span>
+      <input type="text" id="presetName" placeholder="Örn. Akşam Portre" maxlength="24">
+    </label>
+    <div class="modal-actions">
+      <button class="btn ghost" value="cancel" type="submit">Vazgeç</button>
+      <button class="btn primary" id="btnPresetSave" type="button">Kaydet</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
