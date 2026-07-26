@@ -17,6 +17,7 @@ import {
   aiAvailable, aiServerReady, hasAiServer, aiServerMissing,
 } from './ai.js';
 import * as Soc from './social.js';
+import * as SC from './sharecard.js';
 
 const $ = (id) => document.getElementById(id);
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -236,6 +237,154 @@ function render() {
   if (view === 'today') renderToday();
   else if (view === 'analysis') renderAnalysis();
   else renderSocial();
+}
+
+/* ================= paylaşım kartı ================= */
+
+let shareOpts = { period: 'week', theme: 'yesil', showName: true };
+let shareBlob = null;
+let shareBusy = false;
+
+/** O anki seçimlere göre kartı yeniden çizip önizlemeyi tazeler. */
+async function refreshShareCard(imgEl, sizeEl) {
+  const s = SC.summarize(S.state.days, shareOpts.period, S.profile());
+  const canvas = SC.drawCard(s, { ...shareOpts, name: S.profile().username });
+  shareBlob = await SC.canvasToBlob(canvas, 'image/png');
+  if (imgEl.dataset.url) URL.revokeObjectURL(imgEl.dataset.url);
+  const url = URL.createObjectURL(shareBlob);
+  imgEl.dataset.url = url;
+  imgEl.src = url;
+  if (sizeEl) {
+    sizeEl.textContent = `${canvas.width}×${canvas.height} · ${(shareBlob.size / 1024).toFixed(0)} KB`;
+  }
+}
+
+function shareCardSheet() {
+  const box = el('div');
+
+  box.appendChild(el('p', 'muted small',
+    'Dönem özetin görsel olarak hazırlanır. Kartta yalnız aktivite sayıların yer alır — '
+    + '<b>kilo, boy ve hedeflerin görsele yazılmaz</b>.'));
+
+  // Önizleme
+  const frame = el('div', 'share-preview');
+  const img = el('img');
+  img.alt = 'Paylaşım kartı önizlemesi';
+  frame.appendChild(img);
+  box.appendChild(frame);
+  const size = el('p', 'muted small center');
+  box.appendChild(size);
+
+  // Dönem seçimi
+  const perRow = el('div', 'seg wide-seg');
+  for (const p of SC.PERIODS) {
+    const b = el('button', 'seg-btn' + (p.id === shareOpts.period ? ' on' : ''), p.label);
+    b.onclick = () => {
+      shareOpts.period = p.id;
+      perRow.querySelectorAll('.seg-btn').forEach((x) => x.classList.remove('on'));
+      b.classList.add('on');
+      refreshShareCard(img, size);
+    };
+    perRow.appendChild(b);
+  }
+  box.appendChild(el('h3', 'sheet-label', 'Dönem'));
+  box.appendChild(perRow);
+
+  // Renk seçimi
+  const thRow = el('div', 'chip-row');
+  for (const t of SC.THEMES) {
+    const b = el('button', 'chip' + (t.id === shareOpts.theme ? ' active' : ''), t.label);
+    b.style.borderColor = t.accent;
+    b.onclick = () => {
+      shareOpts.theme = t.id;
+      thRow.querySelectorAll('.chip').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      refreshShareCard(img, size);
+    };
+    thRow.appendChild(b);
+  }
+  box.appendChild(el('h3', 'sheet-label', 'Renk'));
+  box.appendChild(thRow);
+
+  // Ad göster
+  const nameToggle = el('label', 'check-row');
+  const cb = el('input');
+  cb.type = 'checkbox';
+  cb.checked = shareOpts.showName;
+  cb.onchange = () => { shareOpts.showName = cb.checked; refreshShareCard(img, size); };
+  nameToggle.appendChild(cb);
+  nameToggle.appendChild(el('span', '', 'Kullanıcı adımı karta yaz'));
+  box.appendChild(nameToggle);
+
+  // Eylemler
+  const actions = el('div', 'share-actions');
+  const mkBtn = (cls, label, fn) => {
+    const b = el('button', cls, label);
+    b.onclick = async () => {
+      if (shareBusy || !shareBlob) return;
+      shareBusy = true;
+      b.disabled = true;
+      try { await fn(); } catch (e) { toast(e.message || 'Olmadı', { error: true }); }
+      b.disabled = false;
+      shareBusy = false;
+    };
+    return b;
+  };
+
+  actions.appendChild(mkBtn('btn-primary', 'Paylaş', shareCardShare));
+  actions.appendChild(mkBtn('btn-ghost', 'Kaydet', shareCardSave));
+  actions.appendChild(mkBtn('btn-ghost', 'Kopyala', shareCardCopy));
+  box.appendChild(actions);
+
+  openSheet('Özeti paylaş', box);
+  refreshShareCard(img, size);
+}
+
+async function shareCardShare() {
+  const name = SC.fileName(shareOpts.period);
+  // Android uygulaması: yerel paylaşım sayfası
+  if (window.SaglikNative?.shareImage) {
+    const done = await window.SaglikNative.shareImage(shareBlob, name, 'Sağlık Panel özetim');
+    if (done) return;
+  }
+  // Tarayıcı: Web Share (dosya destekliyorsa)
+  const file = new File([shareBlob], name, { type: 'image/png' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'Sağlık Panel özetim' });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  // Hiçbiri yoksa indirmeye düş
+  await shareCardSave();
+  toast('Paylaşım desteklenmiyor — görsel indirildi');
+}
+
+async function shareCardSave() {
+  const name = SC.fileName(shareOpts.period);
+  if (window.SaglikNative?.saveImageToGallery) {
+    const where = await window.SaglikNative.saveImageToGallery(shareBlob, name);
+    if (where) { toast(`Kaydedildi: <b>${esc(where)}</b>`); return; }
+  }
+  const url = URL.createObjectURL(shareBlob);
+  const a = el('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast('Görsel indirildi');
+}
+
+async function shareCardCopy() {
+  if (!navigator.clipboard || !window.ClipboardItem) {
+    throw new Error('Bu tarayıcı panoya görsel kopyalamayı desteklemiyor');
+  }
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': shareBlob })]);
+  toast('Panoya kopyalandı — yapıştırıp gönderebilirsin');
 }
 
 /* ================= çizim: arkadaşlar & sıralama ================= */
@@ -1954,6 +2103,7 @@ function settingsSheet() {
 
 function wire() {
   bindSocial();
+  $('btn-share-card').onclick = shareCardSheet;
   $('auth-form').addEventListener('submit', doAuth);
   $('auth-mode').onclick = (e) => {
     const b = e.target.closest('button[data-mode]');

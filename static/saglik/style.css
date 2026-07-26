@@ -811,3 +811,62 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
   font-weight: 700;
   margin-left: 6px;
 }
+
+
+/* ================= paylaşım kartı sayfası ================= */
+
+.share-preview {
+  margin: 12px 0 6px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  display: flex;
+  justify-content: center;
+}
+.share-preview img {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+}
+
+.center { text-align: center; }
+
+.sheet-label {
+  margin: 16px 0 7px;
+  font-size: .78rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-weight: 650;
+}
+
+.wide-seg { width: 100%; }
+.wide-seg .seg-btn { flex: 1; }
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: .92rem;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.check-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.share-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+.share-actions button {
+  flex: 1;
+  padding: 12px 8px;
+}
