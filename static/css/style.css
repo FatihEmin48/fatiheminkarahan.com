@@ -409,3 +409,38 @@ a:hover {
   font-size: 1.1rem;
   z-index: 10;
 }
+
+
+/* ---- proje görselleri ---- */
+
+/* Proje sayfasında başlığın altındaki büyük görüntü */
+.page-shot {
+  margin: 1.25rem 0 1.75rem;
+}
+.page-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid var(--darker-alt-bg);
+}
+
+/* Proje kartlarındaki küçük resim */
+.card-shot {
+  display: block;
+  margin: -1.25rem -1.25rem 0.9rem;
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+  line-height: 0;
+}
+.card-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1200 / 630;
+  object-fit: cover;
+  transition: transform 0.25s ease;
+}
+.project-card:hover .card-shot img {
+  transform: scale(1.03);
+}

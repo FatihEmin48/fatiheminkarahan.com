@@ -23,6 +23,7 @@
       {{ range slice "/okuanla" "/domates-tespiti" "/egg-detection" "/crop-phenology-detection" "/broiler-chicken-detection" "/ai-dermatology-diagnosis" "/teknofest-autonomous-tractor" }}
         {{ with $.Site.GetPage . }}
         <article class="project-card">
+          {{ with .Params.image }}<a class="card-shot" href="{{ $.RelPermalink }}"><img src="{{ . | relURL }}" alt="{{ $.Title }}" width="1200" height="630" loading="lazy" decoding="async"></a>{{ end }}
           <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
           {{ .Summary }}
           <a class="read-more" href="{{ .RelPermalink }}">{{ i18n "readMore" }} &rarr;</a>
@@ -38,6 +39,7 @@
       {{ range slice "/foto-studyo" "/dosya-donusturucu" "/browser-annotator" }}
         {{ with $.Site.GetPage . }}
         <article class="project-card">
+          {{ with .Params.image }}<a class="card-shot" href="{{ $.RelPermalink }}"><img src="{{ . | relURL }}" alt="{{ $.Title }}" width="1200" height="630" loading="lazy" decoding="async"></a>{{ end }}
           <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
           {{ .Summary }}
           <a class="read-more" href="{{ .RelPermalink }}">{{ i18n "readMore" }} &rarr;</a>
@@ -53,6 +55,7 @@
       {{ range slice "/saglik-panel" }}
         {{ with $.Site.GetPage . }}
         <article class="project-card">
+          {{ with .Params.image }}<a class="card-shot" href="{{ $.RelPermalink }}"><img src="{{ . | relURL }}" alt="{{ $.Title }}" width="1200" height="630" loading="lazy" decoding="async"></a>{{ end }}
           <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
           {{ .Summary }}
           <a class="read-more" href="{{ .RelPermalink }}">{{ i18n "readMore" }} &rarr;</a>
@@ -68,6 +71,7 @@
       {{ range slice "/hayatta-kalma" "/altin-madeni" "/ciftlik" "/zipla" }}
         {{ with $.Site.GetPage . }}
         <article class="project-card">
+          {{ with .Params.image }}<a class="card-shot" href="{{ $.RelPermalink }}"><img src="{{ . | relURL }}" alt="{{ $.Title }}" width="1200" height="630" loading="lazy" decoding="async"></a>{{ end }}
           <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
           {{ .Summary }}
           <a class="read-more" href="{{ .RelPermalink }}">{{ i18n "readMore" }} &rarr;</a>
@@ -85,6 +89,7 @@
       {{ range slice "/ileri-sayi-tahmin-oyunu" "/who-are-you" "/sayi-tahmin-uygulamasi" "/alışveriş-uygulaması" "/not-uygulamasi" "/hafiza-kart-oyunu" "/hava-durumu" "/x-o-x" }}
         {{ with $enSite.GetPage . }}
         <article class="project-card">
+          {{ with .Params.image }}<a class="card-shot" href="{{ $.RelPermalink }}"><img src="{{ . | relURL }}" alt="{{ $.Title }}" width="1200" height="630" loading="lazy" decoding="async"></a>{{ end }}
           <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
           {{ .Summary }}
           <a class="read-more" href="{{ .RelPermalink }}">{{ i18n "readMore" }} &rarr;</a>

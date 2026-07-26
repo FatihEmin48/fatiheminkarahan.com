@@ -135,8 +135,10 @@ const PROJECTS = [
   // --- canlı demosu olan dış projeler ---
   { slug: 'browser-annotator', title: 'Görüntü Etiketleme Aracı', sub: 'Tarayıcıda YOLO / COCO veri seti hazırlama',
     shot: 'https://fatihemin48.github.io/browser-annotator/', wait: 3000 },
-  { slug: 'okuanla', title: 'OkuAnla', sub: 'Türkçe metin sadeleştirme ve anlama asistanı',
-    shot: 'https://fatiheminkarahan-okuanla.hf.space', wait: 6000 },
+  // Hugging Face alanı uykuya dalıp hata sayfası gösterebildiği için ekran
+  // görüntüsü yerine çizilmiş kart kullanılıyor — bozuk bir ekran yayımlamaktansa.
+  { slug: 'okuanla', title: 'OkuAnla', sub: 'Türkçe belge zekâsı · OCR + NLP',
+    tint: ['#1e293b', '#38bdf8'], icon: '📑' },
   { slug: 'egg-detection', title: 'Yumurta Tespiti', sub: 'Tarayıcıda çalışan nesne tespiti modeli',
     shot: 'https://fatihemin48.github.io/egg-detector/', wait: 3500 },
   { slug: 'hayatta-kalma', title: 'Hayatta Kalma', sub: 'Tarayıcı oyunu',

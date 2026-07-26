@@ -1,4 +1,11 @@
 <article class="page">
   <h1>{{ .Title }}</h1>
+  {{/* Proje görseli varsa başlığın hemen altında, açıklamadan önce gösterilir. */}}
+  {{ with .Params.image }}
+  <figure class="page-shot">
+    <img src="{{ . | relURL }}" alt="{{ $.Title }}" width="1200" height="630"
+         loading="lazy" decoding="async">
+  </figure>
+  {{ end }}
   {{ .Content }}
 </article>
