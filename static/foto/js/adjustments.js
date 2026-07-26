@@ -7,6 +7,16 @@ export const GROUPS = [
   { id: 'detail', label: 'Detay', icon: '◎' },
   { id: 'effects', label: 'Efekt', icon: '✦' },
   { id: 'split', label: 'Renk Tonlama', icon: '◐' },
+  { id: 'art', label: 'Sanatsal', icon: '✎' },
+];
+
+/** Sanatsal son işlem kipleri. 0 = kapalı. */
+export const ART_MODES = [
+  { id: 0, key: 'yok', label: 'Yok' },
+  { id: 1, key: 'karakalem', label: 'Karakalem' },
+  { id: 2, key: 'suluboya', label: 'Suluboya' },
+  { id: 3, key: 'noktalar', label: 'Noktalar' },
+  { id: 4, key: 'ascii', label: 'ASCII' },
 ];
 
 export const ADJUSTMENTS = [
@@ -41,6 +51,11 @@ export const ADJUSTMENTS = [
   { key: 'highlightHue',  label: 'Vurgu Rengi',   group: 'split', min: 0, max: 360, def: 45,  unit: '°', kind: 'hue', dependsOn: ['highlightSat'] },
   { key: 'highlightSat',  label: 'Vurgu Şiddeti', group: 'split', min: 0, max: 100, def: 0 },
   { key: 'splitBalance',  label: 'Denge',         group: 'split', min: -100, max: 100, def: 0, dependsOn: ['shadowSat', 'highlightSat'] },
+
+  { key: 'artMode',   label: 'Efekt',      group: 'art', min: 0, max: 4,   def: 0, kind: 'artmode' },
+  { key: 'artAmount', label: 'Şiddet',     group: 'art', min: 0, max: 100, def: 100, dependsOn: ['artMode'] },
+  { key: 'artCell',   label: 'Kalınlık',   group: 'art', min: 3, max: 40,  def: 12,  dependsOn: ['artMode'] },
+  { key: 'artColor',  label: 'Renk Koru',  group: 'art', min: 0, max: 100, def: 0,   dependsOn: ['artMode'] },
 ];
 
 export const TOGGLES = [
@@ -112,6 +127,13 @@ export function toUniforms(params, extra = {}) {
     shadowTint: new Float32Array(sTint),
     highlightTint: new Float32Array(hTint),
     splitBalance: v('splitBalance') / 100,
+    artMode: Math.round(v('artMode')),
+    artAmount: v('artAmount') / 100,
+    artCell: Math.max(3, v('artCell')),
+    artColor: v('artColor') / 100,
+    // Karakalem/nokta/ASCII için mürekkep ve kağıt rengi
+    artInk: new Float32Array([0.08, 0.09, 0.11]),
+    artPaper: new Float32Array([0.96, 0.95, 0.92]),
     invert: params.invert ? 1 : 0,
     posterize: v('posterize') >= 2 ? v('posterize') : 0,
     threshold: v('threshold') / 100,

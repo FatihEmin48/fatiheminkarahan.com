@@ -706,3 +706,108 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
   font-size: .84rem;
   font-weight: 650;
 }
+
+
+/* ================= arkadaşlar & sıralama ================= */
+
+.tab { position: relative; }
+.tab-dot {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 18px);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn, #f59e0b);
+  box-shadow: 0 0 0 2px var(--bg, #0a1014);
+}
+
+.rank-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card-2);
+}
+.rank-row.me {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--card-2));
+}
+.rank-no {
+  min-width: 26px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+.rank-row.me .rank-no { color: var(--accent); }
+.rank-row:nth-child(1) .rank-no { color: #fbbf24; }
+.rank-row:nth-child(2) .rank-no { color: #cbd5e1; }
+.rank-row:nth-child(3) .rank-no { color: #d69f6a; }
+.rank-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rank-total {
+  font-variant-numeric: tabular-nums;
+  font-size: .88rem;
+  color: var(--text-faint);
+}
+.rank-row.me .rank-total { color: var(--text); }
+
+.friend-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.friend-row:last-child { border-bottom: none; }
+.friend-main { flex: 1; min-width: 0; }
+.friend-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Kendi payımı arkadaşınkiyle aynı çubukta gösterir */
+.vs-bar {
+  margin-top: 7px;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--line);
+  overflow: hidden;
+}
+.vs-bar .vs-me {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width .25s ease;
+}
+
+.chip.ok {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.badge {
+  background: var(--warn, #f59e0b);
+  color: #1a1205;
+  border-radius: 99px;
+  padding: 1px 7px;
+  font-size: .72rem;
+  font-weight: 700;
+  margin-left: 6px;
+}

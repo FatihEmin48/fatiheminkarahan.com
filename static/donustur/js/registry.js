@@ -7,6 +7,7 @@ import * as d2p from './doc2pdf.js';
 import * as docx from './docx.js';
 import * as tc from './textconv.js';
 import * as xl from './xlsx.js';
+import * as office from './office.js';
 import { createZip } from './zip.js';
 import { baseName } from './detect.js';
 
@@ -74,9 +75,42 @@ async function readText(file) {
   return utf8;
 }
 
-async function paragraphsOf(item) {
+export const SCANNED_HINT =
+  'Bu PDF taranmış görünüyor: içinde seçilebilir metin yok, sayfalar görüntü olarak duruyor. '
+  + 'Metne çeviremem — "PNG" ya da "JPEG" seçeneğiyle sayfaları görüntü olarak alabilirsin.';
+
+/**
+ * Boş çıktı üretmek yerine nedenini söyle. Taranmış PDF'lerde eskiden 0 baytlık
+ * dosya ve boş bir Word belgesi üretiliyordu.
+ */
+function assertText(paragraphs, kind) {
+  const chars = paragraphs.reduce((n, p) => n + String(p.text || '').trim().length, 0);
+  if (chars >= 8) return paragraphs;
+  if (kind === 'pdf') throw new Error(SCANNED_HINT);
+  if (kind === 'docx') throw new Error('Bu belgede metin bulunamadı (boş görünüyor).');
+  throw new Error('Dosya boş, dönüştürülecek bir şey yok.');
+}
+
+async function paragraphsOf(item, { requireText = true } = {}) {
   const { kind, sub, file } = item;
-  if (kind === 'docx') return docx.readDocx(await file.arrayBuffer());
+  const done = (list) => (requireText ? assertText(list, kind) : list);
+
+  if (kind === 'docx') return done(await docx.readDocx(await file.arrayBuffer()));
+  if (kind === 'odt') return done(await office.readOdt(await file.arrayBuffer()));
+  if (kind === 'odp') return done(await office.readOdp(await file.arrayBuffer()));
+  if (kind === 'pptx') return done(await office.readPptx(await file.arrayBuffer()));
+  if (kind === 'ods' || kind === 'xlsx') {
+    const sheets = kind === 'ods'
+      ? await office.readOds(await file.arrayBuffer())
+      : await xl.readXlsx(await file.arrayBuffer());
+    const list = [];
+    for (const s of sheets) {
+      if (sheets.length > 1) list.push({ text: s.name, style: 'h2' });
+      for (const row of s.rows) list.push({ text: row.join('\t'), style: 'table' });
+    }
+    return done(list);
+  }
+  if (sub === 'rtf') return done(office.readRtf(await readText(file)));
   if (kind === 'pdf') {
     const pages = await pdfr.extractText(new Uint8Array(await file.arrayBuffer()));
     const out = [];
@@ -84,22 +118,32 @@ async function paragraphsOf(item) {
       if (i > 0) out.push({ text: '', style: 'p' });
       for (const p of pg.paragraphs) out.push({ text: p, style: 'p' });
     });
-    return out;
+    return done(out);
   }
   const text = await readText(file);
-  if (sub === 'md') return tc.markdownToParagraphs(text);
-  if (sub === 'html') return tc.htmlToParagraphs(text);
-  if (sub === 'json') return tc.textToLines(pretty(text));
+  if (sub === 'md') return done(tc.markdownToParagraphs(text));
+  if (sub === 'html') return done(tc.htmlToParagraphs(text));
+  if (sub === 'json') return done(tc.textToLines(pretty(text)));
   if (sub === 'csv') {
     const rows = tc.parseCsv(text);
-    return rows.map((r) => ({ text: r.join('\t'), style: 'table' }));
+    return done(rows.map((r) => ({ text: r.join('\t'), style: 'table' })));
   }
-  if (sub === 'code' || sub === 'xml') return tc.textToLines(text);
-  return tc.textToParagraphs(text);
+  if (sub === 'code' || sub === 'xml') return done(tc.textToLines(text));
+  return done(tc.textToParagraphs(text));
 }
 
 function pretty(text) {
   try { return JSON.stringify(JSON.parse(text), null, 2); } catch { return text; }
+}
+
+/** Tablo kaynağını ({ name, rows }[]) biçimden bağımsız okur. */
+async function sheetsOf(item) {
+  const buf = await item.file.arrayBuffer();
+  const sheets = item.kind === 'ods' ? await office.readOds(buf) : await xl.readXlsx(buf);
+  if (!sheets.length || !sheets.some((s) => s.rows.length)) {
+    throw new Error('Bu dosyada okunabilir tablo bulunamadı.');
+  }
+  return sheets;
 }
 
 async function zipResults(results, name) {
@@ -230,7 +274,8 @@ export const CONVERTERS = [
         const pages = await pdfr.extractText(new Uint8Array(await item.file.arrayBuffer()), {
           onPage: (n, t) => progress?.(n, t),
         });
-        const text = pages.map((p) => p.paragraphs.join('\n\n')).join('\n\n');
+        const text = pages.map((p) => p.paragraphs.join('\n\n')).join('\n\n').trim();
+        if (text.length < 8) throw new Error(SCANNED_HINT);
         out.push({ name: baseName(item.name) + '.txt', blob: blobOf(text, 'text/plain;charset=utf-8') });
       }
       return out;
@@ -342,7 +387,7 @@ export const CONVERTERS = [
     id: 'docx2pdf',
     label: 'PDF',
     group: 'Belge',
-    accepts: ['docx', 'text', 'pdf'],
+    accepts: ['docx', 'odt', 'odp', 'pptx', 'text', 'pdf'],
     options: ['docPageSize', 'docOrientation', 'docMargin', 'pageNumbers'],
     async run(items, opt, progress) {
       const out = [];
@@ -366,7 +411,7 @@ export const CONVERTERS = [
     id: 'doc2docx',
     label: 'Word (DOCX)',
     group: 'Belge',
-    accepts: ['text'],
+    accepts: ['text', 'odt', 'odp', 'pptx', 'pdf'],
     options: [],
     async run(items, opt, progress) {
       const out = [];
@@ -387,7 +432,7 @@ export const CONVERTERS = [
     id: 'any2txt',
     label: 'Metin (TXT)',
     group: 'Metin',
-    accepts: ['docx', 'text'],
+    accepts: ['docx', 'odt', 'odp', 'pptx', 'text'],
     options: [],
     async run(items) {
       const out = [];
@@ -406,7 +451,7 @@ export const CONVERTERS = [
     id: 'any2md',
     label: 'Markdown',
     group: 'Metin',
-    accepts: ['docx', 'text', 'pdf'],
+    accepts: ['docx', 'odt', 'odp', 'pptx', 'text', 'pdf'],
     options: [],
     async run(items) {
       const out = [];
@@ -425,7 +470,7 @@ export const CONVERTERS = [
     id: 'any2html',
     label: 'HTML',
     group: 'Metin',
-    accepts: ['docx', 'text', 'pdf'],
+    accepts: ['docx', 'odt', 'odp', 'pptx', 'text', 'pdf'],
     options: [],
     async run(items) {
       const out = [];
@@ -516,13 +561,13 @@ export const CONVERTERS = [
     id: 'xlsx2csv',
     label: 'CSV',
     group: 'Veri',
-    accepts: ['xlsx'],
+    accepts: ['xlsx', 'ods'],
     options: ['delimiter'],
     note: 'Her sayfa ayrı CSV olur.',
     async run(items, opt) {
       const out = [];
       for (const item of items) {
-        const sheets = await xl.readXlsx(await item.file.arrayBuffer());
+        const sheets = await sheetsOf(item);
         for (const s of sheets) {
           const csv = tc.toCsv(s.rows, opt.delimiter === 'auto' ? ',' : opt.delimiter);
           const nm = sheets.length > 1
@@ -540,12 +585,12 @@ export const CONVERTERS = [
     id: 'xlsx2json',
     label: 'JSON',
     group: 'Veri',
-    accepts: ['xlsx'],
+    accepts: ['xlsx', 'ods'],
     options: ['headers'],
     async run(items, opt) {
       const out = [];
       for (const item of items) {
-        const sheets = await xl.readXlsx(await item.file.arrayBuffer());
+        const sheets = await sheetsOf(item);
         const data = {};
         for (const s of sheets) {
           data[s.name] = opt.headers !== false
@@ -566,12 +611,12 @@ export const CONVERTERS = [
     id: 'xlsx2pdf',
     label: 'PDF',
     group: 'Belge',
-    accepts: ['xlsx'],
+    accepts: ['xlsx', 'ods'],
     options: ['docPageSize', 'docOrientation', 'docMargin', 'pageNumbers'],
     async run(items, opt) {
       const out = [];
       for (const item of items) {
-        const sheets = await xl.readXlsx(await item.file.arrayBuffer());
+        const sheets = await sheetsOf(item);
         const paragraphs = [];
         for (const s of sheets) {
           if (sheets.length > 1) paragraphs.push({ text: s.name, style: 'h2' });
@@ -595,7 +640,8 @@ export const CONVERTERS = [
     id: 'zipall',
     label: 'ZIP arşivi',
     group: 'Paketle',
-    accepts: ['image', 'pdf', 'docx', 'text', 'xlsx', 'zip', 'doc', 'xls', 'pptx', 'odt', 'unknown'],
+    accepts: ['image', 'pdf', 'docx', 'text', 'xlsx', 'zip', 'doc', 'xls', 'ppt',
+      'pptx', 'odt', 'ods', 'odp', 'unknown'],
     minFiles: 1,
     options: [],
     async run(items, opt, progress) {
@@ -633,7 +679,6 @@ export function targetsFor(items) {
 export const UNSUPPORTED_NOTE = {
   doc: 'Eski .doc biçimi tarayıcıda açılamıyor. Word\'de "Farklı kaydet → .docx" deyip tekrar dene.',
   xls: 'Eski .xls biçimi tarayıcıda açılamıyor. Excel\'de "Farklı kaydet → .xlsx" deyip tekrar dene.',
-  pptx: 'PowerPoint dosyaları henüz dönüştürülemiyor; ZIP olarak paketleyebilirsin.',
-  odt: 'OpenDocument henüz dönüştürülemiyor; ZIP olarak paketleyebilirsin.',
+  ppt: 'Eski .ppt biçimi tarayıcıda açılamıyor. PowerPoint\'te "Farklı kaydet → .pptx" deyip tekrar dene.',
   unknown: 'Bu dosyanın türü tanınmadı; yalnızca ZIP olarak paketlenebilir.',
 };

@@ -7,8 +7,11 @@ const EXT_KIND = {
   avif: ['image', 'avif'], ico: ['image', 'ico'], tif: ['image', 'tiff'],
   tiff: ['image', 'tiff'], svg: ['image', 'svg'], heic: ['image', 'heic'], heif: ['image', 'heic'],
   pdf: ['pdf', 'pdf'],
-  docx: ['docx', 'docx'], doc: ['doc', 'doc'], rtf: ['text', 'rtf'], odt: ['odt', 'odt'],
-  xlsx: ['xlsx', 'xlsx'], xls: ['xls', 'xls'], pptx: ['pptx', 'pptx'],
+  docx: ['docx', 'docx'], doc: ['doc', 'doc'], rtf: ['text', 'rtf'],
+  odt: ['odt', 'odt'], ods: ['ods', 'ods'], odp: ['odp', 'odp'],
+  fodt: ['text', 'xml'], ott: ['odt', 'odt'], ots: ['ods', 'ods'], otp: ['odp', 'odp'],
+  xlsx: ['xlsx', 'xlsx'], xls: ['xls', 'xls'], xlsm: ['xlsx', 'xlsx'],
+  pptx: ['pptx', 'pptx'], ppt: ['ppt', 'ppt'],
   txt: ['text', 'txt'], log: ['text', 'txt'], md: ['text', 'md'], markdown: ['text', 'md'],
   csv: ['text', 'csv'], tsv: ['text', 'csv'], json: ['text', 'json'],
   html: ['text', 'html'], htm: ['text', 'html'], xml: ['text', 'xml'],
@@ -18,8 +21,11 @@ const EXT_KIND = {
 };
 
 export const KIND_LABEL = {
-  image: 'Görsel', pdf: 'PDF', docx: 'Word (DOCX)', doc: 'Word (eski .doc)',
-  xlsx: 'Excel (XLSX)', xls: 'Excel (eski .xls)', pptx: 'PowerPoint', odt: 'OpenDocument',
+  image: 'Görsel', pdf: 'PDF',
+  docx: 'Word (DOCX)', doc: 'Word (eski .doc)',
+  xlsx: 'Excel (XLSX)', xls: 'Excel (eski .xls)',
+  pptx: 'PowerPoint (PPTX)', ppt: 'PowerPoint (eski .ppt)',
+  odt: 'LibreOffice Writer', ods: 'LibreOffice Calc', odp: 'LibreOffice Impress',
   text: 'Metin', zip: 'ZIP', unknown: 'Bilinmiyor',
 };
 
@@ -65,12 +71,17 @@ export async function detect(file) {
   }
   if (startsWith(head, [0x50, 0x4b, 0x03, 0x04]) || startsWith(head, [0x50, 0x4b, 0x05, 0x06])) {
     const text = new TextDecoder('latin1').decode(head);
+    // OpenDocument: ilk girdi sıkıştırılmamış "mimetype" olur
+    if (text.includes('opendocument.text')) return kind('odt', 'odt', file, ext);
+    if (text.includes('opendocument.spreadsheet')) return kind('ods', 'ods', file, ext);
+    if (text.includes('opendocument.presentation')) return kind('odp', 'odp', file, ext);
     if (text.includes('word/')) return kind('docx', 'docx', file, ext);
     if (text.includes('xl/')) return kind('xlsx', 'xlsx', file, ext);
     if (text.includes('ppt/')) return kind('pptx', 'pptx', file, ext);
-    if (text.includes('mimetypeapplication/vnd.oasis')) return kind('odt', 'odt', file, ext);
     const byExt = EXT_KIND[ext];
-    if (byExt && ['docx', 'xlsx', 'pptx', 'odt'].includes(byExt[0])) return kind(byExt[0], byExt[1], file, ext);
+    if (byExt && ['docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp'].includes(byExt[0])) {
+      return kind(byExt[0], byExt[1], file, ext);
+    }
     return kind('zip', 'zip', file, ext);
   }
 

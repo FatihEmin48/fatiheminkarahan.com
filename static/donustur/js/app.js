@@ -295,9 +295,10 @@ const MATRIX = [
   { icon: '🖼', title: 'Görseller', text: 'PNG, JPEG, WebP, GIF, BMP, AVIF, SVG → PNG / JPEG / WebP / PDF. Boyut küçültme ve kalite ayarı.' },
   { icon: '📕', title: 'PDF → başka biçim', text: 'PNG, JPEG (sayfa sayfa, 72–600 DPI), metin, Word (.docx), Markdown, HTML.' },
   { icon: '🔗', title: 'PDF araçları', text: 'Birden çok PDF\'i birleştir, sayfalara böl, çözünürlük düşürerek küçült.' },
-  { icon: '📘', title: 'Word (.docx)', text: 'PDF, metin, Markdown ve HTML\'e çevir. Başlıklar, listeler ve tablolar korunur.' },
-  { icon: '📗', title: 'Excel (.xlsx)', text: 'CSV, JSON ve PDF\'e çevir. Çok sayfalı dosyalarda her sayfa ayrı çıktı olur.' },
-  { icon: '📄', title: 'Metin ve veri', text: 'TXT, Markdown, HTML, CSV, JSON arası dönüşüm; hepsinden PDF ve Word üretimi.' },
+  { icon: '📘', title: 'Word ve Writer', text: '.docx ve .odt → PDF, metin, Markdown, HTML. Başlıklar, listeler ve tablolar korunur.' },
+  { icon: '📗', title: 'Excel ve Calc', text: '.xlsx ve .ods → CSV, JSON, PDF. Çok sayfalı dosyalarda her sayfa ayrı çıktı olur.' },
+  { icon: '📙', title: 'Sunumlar', text: '.pptx ve .odp içindeki slayt metinlerini PDF, Word, Markdown ve HTML\'e aktar.' },
+  { icon: '📄', title: 'Metin ve veri', text: 'TXT, Markdown, HTML, CSV, JSON, RTF arası dönüşüm; hepsinden PDF ve Word üretimi.' },
 ];
 
 function renderMatrix() {

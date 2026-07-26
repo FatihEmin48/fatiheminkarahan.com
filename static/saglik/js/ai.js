@@ -33,14 +33,24 @@ export function clearAiKey() {
 
 export const hasAiKey = () => !!getAiKey();
 
-/** Sunucu yolu kullanılabilir mi? (bulut ayarlı + giriş yapılmış) */
+/** Sunucu yolu kurulu görünüyor mu? (bulut ayarlı + giriş yapılmış) */
 export const hasAiServer = () => !!(CONFIG.url && api.isLoggedIn());
-
-/** Herhangi bir yolla yapay zekâ kullanılabilir mi? */
-export const aiAvailable = () => hasAiServer() || hasAiKey();
 
 let serverDown = false;   // fonksiyon yayınlanmamışsa boşuna denemeyelim
 export const aiServerReady = () => hasAiServer() && !serverDown;
+
+/**
+ * Herhangi bir yolla yapay zekâ kullanılabilir mi?
+ * Sunucu bir kez 404 verdiyse artık "var" sayılmaz — aksi halde arayüz sunucu
+ * yapay zekâsı varmış gibi davranıp her istekte anlamsız hata gösteriyordu.
+ */
+export const aiAvailable = () => aiServerReady() || hasAiKey();
+
+/** Sunucu tarafının yayınlanmadığı anlaşıldı mı? (arayüz mesajı için) */
+export const aiServerMissing = () => hasAiServer() && serverDown;
+
+const SETUP_HINT = 'Sunucu tarafı henüz yayınlanmamış. Ayarlar → Değerlendirme '
+  + 'bölümünden kendi ücretsiz anahtarını ekleyerek hemen kullanabilirsin.';
 
 /* ---------------- sunucu yolu ---------------- */
 
@@ -132,8 +142,10 @@ export async function ask({ mode = 'assess', question = '', summary = {}, search
       const out = await askServer({ mode, question, summary, search });
       return { ...out, via: 'sunucu' };
     } catch (e) {
-      if (e.message !== 'sunucu-yok' && !hasAiKey()) throw e;   // gerçek hata: bildir
-      // sunucu yoksa cihaz anahtarına düş
+      const missing = e.message === 'sunucu-yok';
+      // Cihaz anahtarı yoksa düşülecek yer yok: nedeni açıkça söyle
+      if (!hasAiKey()) throw missing ? new Error(SETUP_HINT) : e;
+      // Anahtar varsa sessizce cihaz yoluna düş
     }
   }
   const out = await askDevice(devicePrompt || question, { search });

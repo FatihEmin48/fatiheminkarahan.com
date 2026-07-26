@@ -22,7 +22,19 @@ export async function openPdf(data) {
     wasmUrl: ASSET('wasm/'),
     isEvalSupported: false,
   });
-  return task.promise;
+  try {
+    return await task.promise;
+  } catch (e) {
+    // pdf.js hataları teknik; kullanıcıya ne yapacağını söyleyen bir karşılığa çevir
+    const name = e?.name || '';
+    if (name === 'PasswordException') {
+      throw new Error('Bu PDF parola korumalı. Parolayı kaldırıp tekrar dene.');
+    }
+    if (name === 'InvalidPDFException') {
+      throw new Error('Dosya geçerli bir PDF değil ya da bozulmuş.');
+    }
+    throw new Error('PDF açılamadı: ' + (e?.message || name || 'bilinmeyen hata'));
+  }
 }
 
 /**

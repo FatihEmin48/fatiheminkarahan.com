@@ -240,6 +240,150 @@ void main() {
 }
 `;
 
+/**
+ * Sanatsal son işlem. Tek gölgelendirici, uMode ile dallanır:
+ *   1 karakalem  2 suluboya  3 yarım ton nokta  4 ASCII
+ * Hepsi ana renk geçişinin çıktısı üzerinde çalışır, böylece kullanıcının
+ * yaptığı tüm ayarlar (pozlama, kontrast, filtre…) sanatsal etkiye de yansır.
+ */
+export const FRAG_ART = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uImage;
+uniform sampler2D uGlyphs;   // ASCII glif atlası (16 hücre, koyudan açığa)
+uniform vec2  uSize;         // çıktı piksel ölçüsü
+uniform float uMode;
+uniform float uAmount;       // 0..1 karışım
+uniform float uCell;         // hücre boyutu (piksel)
+uniform float uColorize;     // 0 = tek renk, 1 = kaynağın rengini koru
+uniform vec3  uInk;
+uniform vec3  uPaper;
+
+float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+
+vec3 sample(vec2 uv) { return texture2D(uImage, clamp(uv, 0.0, 1.0)).rgb; }
+
+/* --- Sobel kenar şiddeti --- */
+float edge(vec2 uv, vec2 px) {
+  float tl = luma(sample(uv + px * vec2(-1.0, -1.0)));
+  float t  = luma(sample(uv + px * vec2( 0.0, -1.0)));
+  float tr = luma(sample(uv + px * vec2( 1.0, -1.0)));
+  float l  = luma(sample(uv + px * vec2(-1.0,  0.0)));
+  float r  = luma(sample(uv + px * vec2( 1.0,  0.0)));
+  float bl = luma(sample(uv + px * vec2(-1.0,  1.0)));
+  float b  = luma(sample(uv + px * vec2( 0.0,  1.0)));
+  float br = luma(sample(uv + px * vec2( 1.0,  1.0)));
+  float gx = -tl - 2.0 * l - bl + tr + 2.0 * r + br;
+  float gy = -tl - 2.0 * t - tr + bl + 2.0 * b + br;
+  return sqrt(gx * gx + gy * gy);
+}
+
+float hash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+/* --- Kuwahara: kenarları koruyan bölge ortalaması, suluboya hissi verir --- */
+vec3 kuwahara(vec2 uv, vec2 px, float radius) {
+  vec3 mean[4];
+  float sigma[4];
+  for (int k = 0; k < 4; k++) { mean[k] = vec3(0.0); sigma[k] = 0.0; }
+  float n = 0.0;
+
+  for (int i = 0; i <= 6; i++) {
+    for (int j = 0; j <= 6; j++) {
+      float fi = float(i) - 3.0;
+      float fj = float(j) - 3.0;
+      vec3 c = sample(uv + px * vec2(fi, fj) * radius);
+      float l = luma(c);
+      // Dört çeyreğe dağıt (merkez satır/sütun birden fazla çeyreğe girer)
+      if (fi <= 0.0 && fj <= 0.0) { mean[0] += c; sigma[0] += l * l; }
+      if (fi >= 0.0 && fj <= 0.0) { mean[1] += c; sigma[1] += l * l; }
+      if (fi <= 0.0 && fj >= 0.0) { mean[2] += c; sigma[2] += l * l; }
+      if (fi >= 0.0 && fj >= 0.0) { mean[3] += c; sigma[3] += l * l; }
+    }
+  }
+  n = 16.0;
+  vec3 best = mean[0] / n;
+  float bestVar = sigma[0] / n - luma(best) * luma(best);
+  for (int k = 1; k < 4; k++) {
+    vec3 m = mean[k] / n;
+    float v = sigma[k] / n - luma(m) * luma(m);
+    if (v < bestVar) { bestVar = v; best = m; }
+  }
+  return best;
+}
+
+void main() {
+  vec4 src = texture2D(uImage, vUv);
+  vec3 base = src.rgb;
+  vec2 px = 1.0 / uSize;
+  vec3 art = base;
+  float cell = max(3.0, uCell);
+
+  /* ---------------- karakalem ---------------- */
+  if (uMode < 1.5) {
+    float e = edge(vUv, px * 1.2);
+    float line = 1.0 - clamp(e * 1.5, 0.0, 1.0);
+    // Kağıt dokusu: ince taramalar
+    float grain = hash(floor(gl_FragCoord.xy * 0.7)) * 0.16;
+    float shade = smoothstep(0.15, 0.85, luma(base));
+    float hatch = sin((gl_FragCoord.x + gl_FragCoord.y) * 0.7) * 0.5 + 0.5;
+    float dark = 1.0 - shade;
+    float tone = 1.0 - clamp(dark * (0.55 + hatch * 0.45), 0.0, 1.0);
+    float v = clamp(min(line, tone * 1.12) - grain * dark, 0.0, 1.0);
+    art = mix(uInk, uPaper, v);
+    art = mix(art, art * base * 2.0, uColorize * 0.5);
+  }
+  /* ---------------- suluboya ---------------- */
+  else if (uMode < 2.5) {
+    vec3 k = kuwahara(vUv, px, max(1.0, cell * 0.34));
+    // Renkleri hafifçe basamaklandır, kenarları koyulaştır
+    vec3 q = floor(k * 9.0 + 0.5) / 9.0;
+    float e = clamp(edge(vUv, px * 1.6) * 0.9, 0.0, 1.0);
+    vec3 wash = mix(q, q * 0.55, e * 0.75);
+    // Kağıt lekesi
+    float blot = hash(floor(gl_FragCoord.xy / 3.0)) * 0.09;
+    art = clamp(wash * (1.0 - blot) + 0.035, 0.0, 1.0);
+  }
+  /* ---------------- yarım ton nokta ---------------- */
+  else if (uMode < 3.5) {
+    float ang = 0.4363;                       // ~25°, klasik tram açısı
+    mat2 rot = mat2(cos(ang), -sin(ang), sin(ang), cos(ang));
+    vec2 p = rot * gl_FragCoord.xy;
+    vec2 grid = mod(p, cell) - cell * 0.5;
+    vec2 centerPx = p - grid;
+    // Hücre merkezi döndürülmüş uzayda; örneklemek için geri döndür
+    mat2 inv = mat2(cos(-ang), -sin(-ang), sin(-ang), cos(-ang));
+    vec2 centerUv = clamp((inv * centerPx) / uSize, 0.0, 1.0);
+    vec3 cellColor = sample(centerUv);
+    float l = luma(cellColor);
+    float radius = sqrt(1.0 - clamp(l, 0.0, 1.0)) * cell * 0.62;
+    float d = length(grid);
+    float dot0 = 1.0 - smoothstep(radius - 1.2, radius + 1.2, d);
+    vec3 ink = mix(uInk, cellColor * 0.85, uColorize);
+    art = mix(uPaper, ink, dot0);
+  }
+  /* ---------------- ASCII ---------------- */
+  else {
+    vec2 cellPx = vec2(cell * 0.6, cell);     // karakterler dikdörtgen
+    vec2 cellIdx = floor(gl_FragCoord.xy / cellPx);
+    vec2 inCell = (gl_FragCoord.xy - cellIdx * cellPx) / cellPx;
+    vec2 centerUv = clamp((cellIdx + 0.5) * cellPx / uSize, 0.0, 1.0);
+    vec3 cellColor = sample(centerUv);
+    float l = clamp(luma(cellColor), 0.0, 1.0);
+    float idx = floor(l * 15.999);            // 16 glif, koyudan açığa
+    vec2 atlasUv = vec2((idx + inCell.x) / 16.0, 1.0 - inCell.y);
+    float glyph = texture2D(uGlyphs, atlasUv).r;
+    vec3 ink = mix(uInk, cellColor, uColorize);
+    art = mix(uPaper, ink, glyph);
+  }
+
+  gl_FragColor = vec4(mix(base, art, uAmount), src.a);
+}
+`;
+
 // Ekrana kopyalama (dama tahtası zemin üstüne alfa harmanlı).
 export const FRAG_PRESENT = `
 precision highp float;

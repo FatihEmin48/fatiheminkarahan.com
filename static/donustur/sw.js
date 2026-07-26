@@ -20,6 +20,7 @@ const SHELL = [
   './js/doc2pdf.js',
   './js/docx.js',
   './js/xlsx.js',
+  './js/office.js',
   './js/textconv.js',
   './js/imgconv.js',
   './fonts/Roboto-Regular.ttf',

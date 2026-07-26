@@ -14,8 +14,9 @@ import { recognizeImage, recognizeRotations, recognizeArea } from './ocr-web.js'
 import { buildSummary, localAssessment, buildPrompt } from './core/core-coach.js';
 import {
   hasAiKey, getAiKey, setAiKey, clearAiKey, ask as askAi,
-  aiAvailable, aiServerReady, hasAiServer,
+  aiAvailable, aiServerReady, hasAiServer, aiServerMissing,
 } from './ai.js';
+import * as Soc from './social.js';
 
 const $ = (id) => document.getElementById(id);
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -221,17 +222,236 @@ function render() {
   applyTheme();
   const p = S.profile();
   $('top-eyebrow').textContent = p.username ? `@${p.username}` : (localOnly ? 'yalnız bu cihaz' : 'sağlık paneli');
-  $('top-title').textContent = view === 'today' ? 'Bugün' : 'Analiz';
+  $('top-title').textContent =
+    view === 'today' ? 'Bugün' : view === 'analysis' ? 'Analiz' : 'Arkadaşlar';
   $('btn-sync').hidden = !cloudOn();
 
   $('view-today').hidden = view !== 'today';
   $('view-analysis').hidden = view !== 'analysis';
+  $('view-social').hidden = view !== 'social';
   for (const t of document.querySelectorAll('.tab')) {
     t.classList.toggle('on', t.dataset.view === view);
   }
 
   if (view === 'today') renderToday();
-  else renderAnalysis();
+  else if (view === 'analysis') renderAnalysis();
+  else renderSocial();
+}
+
+/* ================= çizim: arkadaşlar & sıralama ================= */
+
+let socialPeriod = 'week';
+let socialCache = null;      // { friends, board, optIn }
+let socialLoading = false;
+
+const SETUP_TEXT = 'Bu özelliğin sunucu tarafı henüz kurulmamış. Supabase panelinde '
+  + 'SQL Editor’ü açıp <b>db/schema-social.sql</b> dosyasının tamamını çalıştırman '
+  + 'yeterli. Kurulum bitince bu sayfa kendiliğinden açılır.';
+
+function renderSocial() {
+  const online = cloudOn() && api.isLoggedIn();
+  $('social-offline').hidden = online;
+  $('social-body').hidden = !online || !socialCache;
+  $('social-setup').hidden = true;
+  if (!online) return;
+
+  if (!socialCache && !socialLoading) { loadSocial(); return; }
+  if (!socialCache) return;
+
+  const { friends: fr, board, optIn, myCode } = socialCache;
+
+  $('lb-period-label').textContent = `· bu ${Soc.periodLabel(socialPeriod).toLowerCase()}`;
+  $('my-code').textContent = myCode || '—';
+
+  // Sıralama
+  $('lb-join').hidden = optIn;
+  $('lb-leave').hidden = !optIn;
+  const list = $('lb-list');
+  list.innerHTML = '';
+  for (const row of board) {
+    const li = el('li', 'rank-row' + (row.isMe ? ' me' : ''));
+    li.appendChild(el('span', 'rank-no', String(row.rank)));
+    li.appendChild(el('span', 'rank-name', esc(row.name)));
+    li.appendChild(el('span', 'rank-total', U.nf(row.total) + ' adım'));
+    list.appendChild(li);
+  }
+  const empty = $('lb-empty');
+  if (!board.length) {
+    empty.hidden = false;
+    empty.textContent = optIn
+      ? 'Bu dönemde henüz kimsenin adımı kaydedilmemiş.'
+      : 'Katılan kullanıcı yok ya da bu dönemde veri girilmemiş.';
+  } else empty.hidden = true;
+
+  // Gelen istekler
+  const reqCard = $('requests-card');
+  reqCard.hidden = !fr.gelen.length;
+  $('req-count').textContent = fr.gelen.length || '';
+  const reqList = $('req-list');
+  reqList.innerHTML = '';
+  for (const r of fr.gelen) {
+    const row = el('div', 'friend-row');
+    row.appendChild(el('span', 'friend-name', `${esc(r.name)} <span class="muted small">@${esc(r.username)}</span>`));
+    const yes = el('button', 'chip ok', 'Kabul et');
+    const no = el('button', 'chip', 'Reddet');
+    yes.onclick = () => respondTo(r.friendshipId, true);
+    no.onclick = () => respondTo(r.friendshipId, false);
+    row.append(yes, no);
+    reqList.appendChild(row);
+  }
+  $('social-dot').hidden = !fr.gelen.length;
+
+  // Arkadaşlar
+  const host = $('friend-list');
+  host.innerHTML = '';
+  const mine = myPeriodSteps(socialPeriod);
+  for (const f of fr.arkadaslar) {
+    const row = el('div', 'friend-row friend-card');
+    const main = el('div', 'friend-main');
+    main.appendChild(el('div', 'friend-name', esc(f.name)));
+    main.appendChild(el('div', 'muted small',
+      `${U.nf(f.total)} adım · ${f.days} gün · ${Soc.compareText(mine, f.total)}`));
+    // Kendi payım ile arkadaşınki tek çubukta: soldaki dolgu benim oranım
+    const bar = el('div', 'vs-bar');
+    const fill = el('i', 'vs-me');
+    const total = Math.max(1, mine + f.total);
+    fill.style.width = `${(mine / total) * 100}%`;
+    bar.appendChild(fill);
+    main.appendChild(bar);
+    row.appendChild(main);
+
+    const del = el('button', 'chip', 'Çıkar');
+    del.onclick = () => removeFriendAsk(f);
+    row.appendChild(del);
+    host.appendChild(row);
+  }
+  for (const g of fr.giden) {
+    const row = el('div', 'friend-row');
+    row.appendChild(el('span', 'friend-name',
+      `${esc(g.name)} <span class="muted small">— yanıt bekleniyor</span>`));
+    const del = el('button', 'chip', 'İptal');
+    del.onclick = () => removeFriendAsk(g);
+    row.appendChild(del);
+    host.appendChild(row);
+  }
+  $('friend-empty').hidden = fr.arkadaslar.length > 0 || fr.giden.length > 0;
+
+  for (const b of document.querySelectorAll('#social-period .seg-btn')) {
+    b.classList.toggle('on', b.dataset.period === socialPeriod);
+  }
+}
+
+/** Kendi dönem adım toplamım — karşılaştırma için yerel veriden. */
+function myPeriodSteps(period) {
+  const from = Soc.periodStart(period);
+  const to = Soc.todayIso();
+  let sum = 0;
+  for (const d of S.state.days || []) {
+    if (d.day >= from && d.day <= to) sum += Number(d.steps || 0);
+  }
+  return sum;
+}
+
+async function loadSocial() {
+  if (socialLoading) return;
+  socialLoading = true;
+  try {
+    const [fr, board, prof] = await Promise.all([
+      Soc.friends(socialPeriod),
+      Soc.leaderboard(socialPeriod),
+      api.getProfile().catch(() => null),
+    ]);
+    socialCache = {
+      friends: fr,
+      board,
+      optIn: !!prof?.leaderboard_opt_in,
+      myCode: prof?.friend_code || '',
+    };
+    $('social-setup').hidden = true;
+  } catch (e) {
+    if (Soc.isNotInstalled(e)) {
+      $('social-setup').hidden = false;
+      $('social-setup-text').innerHTML = SETUP_TEXT;
+      $('social-body').hidden = true;
+    } else {
+      toast('Arkadaş verisi alınamadı: ' + e.message, { error: true });
+    }
+  } finally {
+    socialLoading = false;
+    if (socialCache) renderSocial();
+  }
+}
+
+function refreshSocial() {
+  socialCache = null;
+  renderSocial();
+}
+
+async function respondTo(id, accept) {
+  try {
+    await Soc.respondRequest(id, accept);
+    toast(accept ? 'Arkadaş eklendi' : 'İstek reddedildi');
+    refreshSocial();
+  } catch (e) { toast(e.message, { error: true }); }
+}
+
+async function removeFriendAsk(f) {
+  if (!confirm(`${f.name} listenden çıkarılsın mı?`)) return;
+  try {
+    await Soc.removeFriend(f.userId);
+    toast('Çıkarıldı');
+    refreshSocial();
+  } catch (e) { toast(e.message, { error: true }); }
+}
+
+function bindSocial() {
+  for (const b of document.querySelectorAll('#social-period .seg-btn')) {
+    b.onclick = () => { socialPeriod = b.dataset.period; refreshSocial(); };
+  }
+
+  $('friend-add').onclick = async () => {
+    const q = $('friend-q').value.trim();
+    const msg = $('friend-msg');
+    if (!q) { $('friend-q').focus(); return; }
+    msg.textContent = 'Aranıyor…';
+    try {
+      const user = await Soc.findUser(q);
+      if (!user) { msg.textContent = 'Bu kod ya da kullanıcı adıyla kimse bulunamadı.'; return; }
+      const res = await Soc.sendRequest(user.id);
+      msg.textContent = `${user.name}: ${res.message}`;
+      $('friend-q').value = '';
+      refreshSocial();
+    } catch (e) {
+      msg.textContent = Soc.isNotInstalled(e) ? 'Sunucu tarafı kurulmamış.' : e.message;
+    }
+  };
+
+  $('copy-code').onclick = async () => {
+    const code = socialCache?.myCode;
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      toast('Kod kopyalandı');
+    } catch { toast('Kopyalanamadı', { error: true }); }
+  };
+
+  $('lb-join-btn').onclick = async () => {
+    const name = $('lb-name').value.trim() || S.profile().username || '';
+    try {
+      await Soc.joinLeaderboard(name);
+      toast('Sıralamaya katıldın');
+      refreshSocial();
+    } catch (e) { toast(e.message, { error: true }); }
+  };
+
+  $('lb-leave').onclick = async () => {
+    if (!confirm('Sıralamadan ayrılmak istediğine emin misin? Listede görünmeyeceksin.')) return;
+    try {
+      await Soc.leaveLeaderboard();
+      toast('Sıralamadan ayrıldın');
+      refreshSocial();
+    } catch (e) { toast(e.message, { error: true }); }
+  };
 }
 
 /* ================= çizim: bugün ================= */
@@ -1345,8 +1565,11 @@ async function coachRequest({ mode, question = '' }) {
     return;
   }
   if (mode === 'ask' && !aiAvailable()) {
-    showCoach('Soru sorabilmek için yapay zekâ gerekiyor. Ayarlar → Değerlendirme '
-      + 'bölümünden açabilirsin; hesabınla giriş yaptıysan çoğu kurulumda hazır gelir.');
+    showCoach(aiServerMissing()
+      ? 'Bu kurulumda sunucu tarafı yayınlanmamış, o yüzden soru soramıyorum. '
+        + 'Ayarlar → Değerlendirme bölümünden kendi ücretsiz anahtarını eklersen hemen çalışır.'
+      : 'Soru sorabilmek için yapay zekâ gerekiyor. Ayarlar → Değerlendirme '
+        + 'bölümünden açabilirsin.');
     coachBusy = false;
     btn.disabled = false;
     return;
@@ -1392,7 +1615,12 @@ function askCoach() {
 function aiSheet() {
   const box = el('div');
 
-  if (hasAiServer()) {
+  if (aiServerMissing()) {
+    box.appendChild(el('p', 'muted small',
+      'Bu kurulumda <b>sunucu tarafı yayınlanmamış</b> — yapay zekâ şu an sunucu '
+      + 'üzerinden çalışmıyor. Aşağıya kendi ücretsiz anahtarını girersen hemen '
+      + 'kullanabilirsin; anahtar yalnız bu cihazda saklanır.'));
+  } else if (hasAiServer()) {
     box.appendChild(el('p', 'muted small',
       'Hesabınla giriş yaptığın için yapay zekâ <b>sunucu üzerinden</b> çalışır: '
       + 'anahtar girmene gerek yok, kişisel bir sınır dahilinde ücretsizdir. '
@@ -1725,6 +1953,7 @@ function settingsSheet() {
 /* ================= olaylar ================= */
 
 function wire() {
+  bindSocial();
   $('auth-form').addEventListener('submit', doAuth);
   $('auth-mode').onclick = (e) => {
     const b = e.target.closest('button[data-mode]');

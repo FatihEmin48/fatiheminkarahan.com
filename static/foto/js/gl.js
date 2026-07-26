@@ -1,7 +1,7 @@
 // WebGL render motoru: kaynak doku → dönüşüm → bulanıklık → ana renk geçişi → ekran.
 // Aynı hat hem önizleme (ekran boyutu) hem dışa aktarım (tam çözünürlük) için kullanılır.
 
-import { VERT_QUAD, FRAG_TRANSFORM, FRAG_BLUR, FRAG_MAIN, FRAG_PRESENT } from './shaders.js';
+import { VERT_QUAD, FRAG_TRANSFORM, FRAG_BLUR, FRAG_MAIN, FRAG_ART, FRAG_PRESENT } from './shaders.js';
 import * as m3 from './mat3.js';
 
 function compile(gl, type, source) {
@@ -72,6 +72,7 @@ export class Engine {
     this.pTransform = program(gl, VERT_QUAD, FRAG_TRANSFORM);
     this.pBlur = program(gl, VERT_QUAD, FRAG_BLUR);
     this.pMain = program(gl, VERT_QUAD, FRAG_MAIN);
+    this.pArt = program(gl, VERT_QUAD, FRAG_ART);
     this.pPresent = program(gl, VERT_QUAD, FRAG_PRESENT);
 
     this.quad = gl.createBuffer();
@@ -87,6 +88,8 @@ export class Engine {
     this.srcW = 0;
     this.srcH = 0;
     this.curveTex = null;
+    this.glyphTex = null;
+    this.buildGlyphAtlas();
     this.targets = {};
     this.seed = Math.random() * 100;
   }
@@ -119,7 +122,54 @@ export class Engine {
     this.srcTex = tex;
     this.srcW = w;
     this.srcH = h;
+    this.buildMipChain();
     return { width: w, height: h };
+  }
+
+  /**
+   * Kaynağı ardışık yarılayarak bir mip zinciri kurar.
+   * WebGL1 iki-kuvveti olmayan dokularda `generateMipmap` kabul etmediği için
+   * seviyeler elle üretilir. Her yarılamada LINEAR örnekleme tam 2x2 kutu
+   * ortalaması verir; böylece 8 kat küçültmede 64 pikselin tamamı hesaba katılır.
+   * Bu olmadan yalnız 2x2 okunuyor ve fotoğraf "karıncalı" görünüyordu.
+   */
+  buildMipChain() {
+    const gl = this.gl;
+    for (const m of this.mips || []) {
+      if (m.owned) { gl.deleteTexture(m.tex); gl.deleteFramebuffer(m.fbo); }
+    }
+    this.mips = [{ tex: this.srcTex, w: this.srcW, h: this.srcH, owned: false }];
+
+    let w = this.srcW;
+    let h = this.srcH;
+    let prev = this.mips[0];
+    while (w > 32 && h > 32 && this.mips.length < 12) {
+      w = Math.max(1, Math.floor(w / 2));
+      h = Math.max(1, Math.floor(h / 2));
+      const level = createTarget(gl, w, h);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, prev.tex);
+      gl.useProgram(this.pTransform.program);
+      gl.uniform1i(this.pTransform.u.uImage, 0);
+      gl.uniformMatrix3fv(this.pTransform.u.uUvMatrix, false, new Float32Array(m3.identity()));
+      this.drawQuad(this.pTransform, level);
+      level.owned = true;
+      this.mips.push(level);
+      prev = level;
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  /**
+   * Çıkış çözünürlüğüne göre uygun mip seviyesi.
+   * Seçilen seviyede kalan küçültme oranı 1–2 arasında kalır; bilineer örnekleme
+   * bu aralıkta yeterlidir.
+   */
+  pickMip(sourcePixelsPerOutputPixel) {
+    if (!this.mips || this.mips.length < 2) return this.mips?.[0] || null;
+    const k = Math.max(1, sourcePixelsPerOutputPixel);
+    const level = Math.min(this.mips.length - 1, Math.max(0, Math.floor(Math.log2(k))));
+    return this.mips[level];
   }
 
   /** 256x1 RGBA eğri arama tablosunu günceller. */
@@ -201,10 +251,12 @@ export class Engine {
     const gl = this.gl;
     if (!this.srcTex) return null;
 
-    // 1) Dönüşüm geçişi
+    // 1) Dönüşüm geçişi — küçültme oranına uygun mip seviyesinden örnekle
     const base = this.target(keyPrefix + 'Base', outW, outH);
+    const size = this.outputSize(transform);
+    const mip = this.pickMip(Math.max(size.w / outW, size.h / outH));
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.srcTex);
+    gl.bindTexture(gl.TEXTURE_2D, (mip || { tex: this.srcTex }).tex);
     gl.useProgram(this.pTransform.program);
     gl.uniform1i(this.pTransform.u.uImage, 0);
     gl.uniformMatrix3fv(this.pTransform.u.uUvMatrix, false, new Float32Array(this.uvMatrix(transform)));
@@ -282,7 +334,63 @@ export class Engine {
     if (P.u.uHighlightTint) gl.uniform3fv(P.u.uHighlightTint, params.highlightTint);
 
     this.drawQuad(P, out);
+
+    // 4) Sanatsal son işlem (seçiliyse)
+    if (params.artMode > 0 && params.artAmount > 0.001) {
+      const art = this.target(keyPrefix + 'Art', outW, outH);
+      const A = this.pArt;
+      gl.useProgram(A.program);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, out.tex);
+      gl.uniform1i(A.u.uImage, 0);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, this.glyphTex || this.curveTex);
+      gl.uniform1i(A.u.uGlyphs, 1);
+      gl.uniform2f(A.u.uSize, outW, outH);
+      gl.uniform1f(A.u.uMode, params.artMode);
+      gl.uniform1f(A.u.uAmount, params.artAmount);
+      // Hücre ölçeği çıktı boyutuyla büyür ki önizleme ile kayıt aynı görünsün
+      gl.uniform1f(A.u.uCell, params.artCell * Math.max(0.35, outW / 1400));
+      gl.uniform1f(A.u.uColorize, params.artColor);
+      gl.uniform3fv(A.u.uInk, params.artInk);
+      gl.uniform3fv(A.u.uPaper, params.artPaper);
+      this.drawQuad(A, art);
+      return art;
+    }
     return out;
+  }
+
+  /**
+   * ASCII glif atlası: 16 hücre, koyudan açığa. Tek kanal yeterli olduğundan
+   * kırmızı kanal okunur. Bir kez üretilir.
+   */
+  buildGlyphAtlas(chars = '@%#WM8&$*ozc+~-.: '.split('')) {
+    const gl = this.gl;
+    const CELL = 32;
+    const N = 16;
+    const c = document.createElement('canvas');
+    c.width = CELL * N;
+    c.height = CELL;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(CELL * 0.92)}px "Consolas", "Cascadia Mono", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Koyudan açığa: en yoğun karakter en karanlık tona düşsün
+    for (let i = 0; i < N; i++) {
+      const ch = chars[Math.min(chars.length - 1, Math.round((i / (N - 1)) * (chars.length - 1)))];
+      ctx.fillText(ch, i * CELL + CELL / 2, CELL / 2 + 1);
+    }
+    if (!this.glyphTex) this.glyphTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.glyphTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return this.glyphTex;
   }
 
   /**

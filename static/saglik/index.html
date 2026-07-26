@@ -223,6 +223,73 @@
     </section>
   </main>
 
+  <!-- ---------- ARKADAŞLAR & SIRALAMA ---------- -->
+  <main class="view" id="view-social" hidden>
+
+    <section class="card" id="social-setup" hidden>
+      <h2 class="card-title">Kurulum gerekiyor</h2>
+      <p class="muted small" id="social-setup-text"></p>
+    </section>
+
+    <section class="card" id="social-offline" hidden>
+      <h2 class="card-title">Hesap gerekiyor</h2>
+      <p class="muted small">Arkadaş eklemek ve sıralamada yer almak için hesabınla giriş yapman gerekiyor.
+        Ayarlar → Hesap bölümünden giriş yapabilirsin.</p>
+    </section>
+
+    <div id="social-body" hidden>
+      <section class="card">
+        <div class="period-nav">
+          <div class="seg" id="social-period">
+            <button class="seg-btn on" data-period="week">Hafta</button>
+            <button class="seg-btn" data-period="month">Ay</button>
+            <button class="seg-btn" data-period="year">Yıl</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="leaderboard-card">
+        <h2 class="card-title">Sıralama <span class="muted small" id="lb-period-label"></span></h2>
+        <div id="lb-join" hidden>
+          <p class="muted small">Sıralamada yer almak isteğe bağlı. Katılırsan seçtiğin ad ve
+            dönem adım toplamın diğer kullanıcılara görünür; kilo, boy ve hedeflerin
+            <b>hiçbir zaman</b> paylaşılmaz. İstediğin an ayrılabilirsin.</p>
+          <label class="field" style="margin-top:10px">
+            <span>Görünecek adın</span>
+            <input type="text" id="lb-name" maxlength="24" placeholder="Örn. Fatih K.">
+          </label>
+          <button class="btn-primary wide" id="lb-join-btn">Sıralamaya katıl</button>
+        </div>
+        <ol class="rank-list" id="lb-list"></ol>
+        <p class="muted small" id="lb-empty" hidden></p>
+        <button class="btn-ghost wide" id="lb-leave" hidden style="margin-top:10px">Sıralamadan ayrıl</button>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Arkadaş ekle</h2>
+        <p class="muted small">Arkadaşının <b>kodunu</b> ya da kullanıcı adını yaz. Senin kodun:
+          <b id="my-code">—</b> <button class="chip" id="copy-code">kopyala</button></p>
+        <label class="field" style="margin-top:10px">
+          <span>Kod ya da kullanıcı adı</span>
+          <input type="text" id="friend-q" maxlength="24" autocapitalize="characters" placeholder="Örn. K7M2QP">
+        </label>
+        <button class="btn-primary wide" id="friend-add">Ara ve istek gönder</button>
+        <p class="muted small" id="friend-msg"></p>
+      </section>
+
+      <section class="card" id="requests-card" hidden>
+        <h2 class="card-title">Gelen istekler <span class="badge" id="req-count"></span></h2>
+        <div id="req-list"></div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Arkadaşların</h2>
+        <div id="friend-list"></div>
+        <p class="muted small" id="friend-empty" hidden>Henüz arkadaşın yok. Yukarıdan kod ile ekleyebilirsin.</p>
+      </section>
+    </div>
+  </main>
+
   <!-- ---------- ALT GEZİNME ---------- -->
   <nav class="tabbar">
     <button class="tab on" data-view="today">
@@ -232,6 +299,11 @@
     <button class="tab" data-view="analysis">
       <svg viewBox="0 0 24 24"><path d="M5 20V10m7 10V4m7 16v-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
       <span>Analiz</span>
+    </button>
+    <button class="tab" data-view="social">
+      <svg viewBox="0 0 24 24"><path d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm10 8v-1.5a3.5 3.5 0 0 0-2.6-3.4M15.5 4.6a3.5 3.5 0 0 1 0 6.8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Arkadaşlar</span>
+      <i class="tab-dot" id="social-dot" hidden></i>
     </button>
   </nav>
 </div>

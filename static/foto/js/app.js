@@ -3,7 +3,7 @@
 import { Engine } from './gl.js';
 import {
   GROUPS, ADJUSTMENTS, ADJ_BY_KEY, TOGGLES,
-  defaultParams, defaultTransform, toUniforms,
+  defaultParams, defaultTransform, toUniforms, ART_MODES,
 } from './adjustments.js';
 import { PRESETS, PRESET_BY_ID } from './presets.js';
 import { defaultCurves, buildLUT, isIdentity, CURVE_PRESETS } from './curves.js';
@@ -367,11 +367,41 @@ function buildAdjustPanel() {
     }
 
     for (const a of items) {
-      body.appendChild(buildSlider(a));
+      body.appendChild(a.kind === 'artmode' ? buildArtModeRow(a) : buildSlider(a));
     }
     box.appendChild(body);
     host.appendChild(box);
   }
+}
+
+/** Sanatsal efekt seçimi kaydırıcı değil, çip satırı olarak gösterilir. */
+function buildArtModeRow(a) {
+  const wrap = document.createElement('div');
+  wrap.className = 'slider art-modes';
+  wrap.dataset.key = a.key;
+
+  const head = document.createElement('div');
+  head.className = 'slider-head';
+  const label = document.createElement('label');
+  label.textContent = a.label;
+  head.appendChild(label);
+
+  const row = document.createElement('div');
+  row.className = 'chip-row';
+  for (const m of ART_MODES) {
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.dataset.art = m.id;
+    chip.textContent = m.label;
+    chip.addEventListener('click', () => {
+      store.transact(m.label, () => setEffective('artMode', m.id));
+      syncAll();
+      scheduleRender();
+    });
+    row.appendChild(chip);
+  }
+  wrap.append(head, row);
+  return wrap;
 }
 
 function buildSlider(a) {
@@ -469,9 +499,16 @@ function syncAll() {
   for (const a of ADJUSTMENTS) {
     const wrap = document.querySelector(`.slider[data-key="${a.key}"]`);
     if (!wrap) continue;
+    const v = eff[a.key] ?? a.def;
+    if (a.kind === 'artmode') {
+      wrap.querySelectorAll('[data-art]').forEach((c) => {
+        c.classList.toggle('active', Number(c.dataset.art) === Math.round(v));
+      });
+      wrap.classList.toggle('changed', Math.round(v) !== a.def);
+      continue;
+    }
     const range = wrap.querySelector('input');
     const out = wrap.querySelector('output');
-    const v = eff[a.key] ?? a.def;
     range.value = v;
     out.textContent = formatVal(a, v);
     wrap.classList.toggle('changed', Math.abs(v - a.def) > 0.001);
@@ -1663,7 +1700,7 @@ function syncSlidersOnly() {
   const eff = effectiveParams();
   for (const a of ADJUSTMENTS) {
     const wrap = document.querySelector(`.slider[data-key="${a.key}"]`);
-    if (!wrap) continue;
+    if (!wrap || a.kind === 'artmode') continue;
     wrap.querySelector('input').value = eff[a.key];
     wrap.querySelector('output').textContent = formatVal(a, eff[a.key]);
     wrap.classList.toggle('changed', Math.abs(eff[a.key] - a.def) > 0.001);
