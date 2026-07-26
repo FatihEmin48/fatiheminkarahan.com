@@ -207,6 +207,65 @@ export class Api {
 
   rotateIngestToken() { return this.rpc('sp_rotate_ingest_token'); }
 
+  /* ---------------- hesap silme ---------------- */
+
+  /** Silinecek verinin özeti. Sunucu tarafı kurulu değilse null döner. */
+  async accountSummary() {
+    try {
+      const rows = await this.rpc('sp_account_summary');
+      return Array.isArray(rows) ? rows[0] || null : rows || null;
+    } catch (e) {
+      if (e.status === 404) return null;
+      throw e;
+    }
+  }
+
+  /**
+   * Hesabı ve tüm sunucu verisini kalıcı olarak siler.
+   * Önce depolamadaki görseller tek tek silinir (bunlar cascade edilmiyor),
+   * sonra auth kullanıcısı silinir — o da tüm sp_* satırlarını götürür.
+   * Sonunda yerel oturum kapatılır.
+   */
+  async deleteAccount() {
+    if (!this.isLoggedIn()) throw new ApiError('Giriş yapılmadı', 401);
+
+    // 1) Depolama klasörü
+    try {
+      const files = await this.listImages();
+      for (const f of files) {
+        try { await this.deleteImage(f); } catch (e) { /* sunucu tarafı da temizliyor */ }
+      }
+    } catch (e) { /* listelenemezse devam et */ }
+
+    // 2) Hesabı sil
+    let result = null;
+    try {
+      result = await this.rpc('sp_delete_account');
+    } catch (e) {
+      if (e.status === 404) {
+        throw new ApiError(
+          'Hesap silme sunucu tarafı kurulu değil. db/schema-delete-account.sql çalıştırılmalı.',
+          501,
+        );
+      }
+      throw e;
+    }
+
+    // 3) Yerel oturumu kapat (jeton zaten geçersiz)
+    this._saveSession(null);
+    return result;
+  }
+
+  /** Kullanıcının kendi klasöründeki dosya yolları. */
+  async listImages() {
+    const id = this.userId;
+    if (!id) return [];
+    const rows = await this._authed('POST', `/storage/v1/object/list/${CONFIG.bucket}`, {
+      prefix: `${id}/`, limit: 500, offset: 0,
+    });
+    return (rows || []).filter((r) => r?.name).map((r) => `${id}/${r.name}`);
+  }
+
   /** Profil satırı yoksa oluştur (şema sonradan kurulmuş bir projede hesap zaten varsa). */
   async ensureProfile(fallbackName = null) {
     let prof = await this.getProfile();

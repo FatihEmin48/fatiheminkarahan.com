@@ -239,6 +239,105 @@ function render() {
   else renderSocial();
 }
 
+/* ================= hesap silme ================= */
+
+const ONAY_SOZU = 'SİL';
+
+/**
+ * Hesap silme onayı. Geri alınamaz bir işlem olduğu için tek dokunuşla değil,
+ * ne kaybedileceği gösterilerek ve onay sözcüğü yazdırılarak yapılıyor.
+ */
+async function deleteAccountSheet() {
+  const box = el('div');
+
+  box.appendChild(el('p', 'muted small',
+    'Hesabın ve <b>sunucudaki tüm verin</b> kalıcı olarak silinir: günlük aktiviteler, '
+    + 'kilo ölçümleri, yüklediğin görseller, arkadaşlıkların ve sıralamadaki yerin. '
+    + '<b>Bu işlem geri alınamaz.</b>'));
+
+  const info = el('div', 'del-summary');
+  info.appendChild(el('p', 'muted small', 'Özet alınıyor…'));
+  box.appendChild(info);
+
+  box.appendChild(el('p', 'muted small',
+    'Silmeden önce <b>Ayarlar → JSON yedek indir</b> ile verini saklayabilirsin. '
+    + 'Bu cihazdaki yerel kopya da temizlenecek.'));
+
+  const f = el('label', 'field');
+  f.innerHTML = `<span>Onaylamak için <b>${ONAY_SOZU}</b> yaz</span>`;
+  const input = el('input');
+  input.type = 'text';
+  input.autocapitalize = 'characters';
+  input.autocomplete = 'off';
+  input.placeholder = ONAY_SOZU;
+  f.appendChild(input);
+  box.appendChild(f);
+
+  const msg = el('p', 'muted small');
+  box.appendChild(msg);
+
+  const go = el('button', 'btn-danger wide', 'Hesabımı kalıcı olarak sil');
+  go.disabled = true;
+  input.oninput = () => {
+    go.disabled = input.value.trim().toLocaleUpperCase('tr') !== ONAY_SOZU;
+  };
+
+  go.onclick = async () => {
+    go.disabled = true;
+    input.disabled = true;
+    msg.textContent = 'Siliniyor…';
+    try {
+      await api.deleteAccount();
+      S.resetLocal();
+      closeSheet();
+      showAuth();
+      toast('Hesabın silindi. Bizi tercih ettiğin için teşekkürler.');
+    } catch (e) {
+      input.disabled = false;
+      go.disabled = false;
+      msg.innerHTML = `<span style="color:var(--danger)">${esc(e.message || 'Silinemedi')}</span>`;
+    }
+  };
+  box.appendChild(go);
+
+  const cancel = el('button', 'btn-ghost wide', 'Vazgeç');
+  cancel.style.marginTop = '8px';
+  cancel.onclick = closeSheet;
+  box.appendChild(cancel);
+
+  openSheet('Hesabı sil', box);
+
+  // Özet arka planda gelsin; gelmezse silme yine çalışır
+  try {
+    const s = await api.accountSummary();
+    info.innerHTML = '';
+    if (!s) {
+      info.appendChild(el('p', 'muted small',
+        'Özet alınamadı (sunucu tarafı eksik olabilir), ama silme yine de denenebilir.'));
+      return;
+    }
+    const rows = [
+      ['Günlük kayıt', U.nf(s.gun_sayisi || 0)],
+      ['Kilo ölçümü', U.nf(s.kilo_sayisi || 0)],
+      ['Arkadaş', U.nf(s.arkadas_sayisi || 0)],
+      ['Yüklenen görsel', U.nf(s.yukleme_sayisi || 0)],
+    ];
+    const dl = el('dl', 'del-list');
+    for (const [k, v] of rows) {
+      dl.appendChild(el('dt', '', k));
+      dl.appendChild(el('dd', '', v));
+    }
+    info.appendChild(dl);
+    if (s.kayit_tarihi) {
+      info.appendChild(el('p', 'muted small',
+        `Hesap açılış: ${new Date(s.kayit_tarihi).toLocaleDateString('tr-TR')}`));
+    }
+  } catch (e) {
+    info.innerHTML = '';
+    info.appendChild(el('p', 'muted small', 'Özet alınamadı.'));
+  }
+}
+
 /* ================= paylaşım kartı ================= */
 
 let shareOpts = { period: 'week', theme: 'yesil', showName: true };
@@ -2071,6 +2170,10 @@ function settingsSheet() {
       toast('Çıkış yapıldı');
     };
     b5.appendChild(out);
+
+    const del = el('button', 'set-action danger', 'Hesabımı sil');
+    del.onclick = () => { closeSheet(); deleteAccountSheet(); };
+    b5.appendChild(del);
   }
 
   const wipe = el('button', 'set-action danger', 'Bu cihazdaki veriyi sıfırla');
@@ -2256,6 +2359,7 @@ async function boot() {
     S, U,
     render,
     showApp,
+    openDeleteSheet: deleteAccountSheet,
     get view() { return view; },
     set view(v) { view = v; },
     ready: true,
