@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Fatih Emin Karahan</title>
+  <rect width="64" height="64" rx="14" fill="#212121"/>
+  <g stroke="#42a5f5" stroke-width="4.5" fill="none" stroke-linecap="square">
+    <path d="M11 20V11H20"/>
+    <path d="M44 11H53V20"/>
+    <path d="M53 44V53H44"/>
+    <path d="M20 53H11V44"/>
+  </g>
+  <g stroke="#fff" stroke-width="4" fill="none" stroke-linecap="butt">
+    <path d="M15 25V39M15 25H24M15 31H22"/>
+    <path d="M29 25V39M29 25H37M29 31H35M29 39H37"/>
+    <path d="M42 25V39M42 32L51 25M42 32L51 39"/>
+  </g>
+</svg>

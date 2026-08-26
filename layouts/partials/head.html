@@ -20,6 +20,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ if .IsHome }}{{ $pageTitle }}{{ else }}{{ $pageTitle }} · {{ .Site.Title }}{{ end }}</title>
 <meta name="description" content="{{ .Site.Params.description }}">
+<link rel="icon" href="{{ "favicon.svg" | relURL }}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="{{ "apple-touch-icon.png" | relURL }}">
+{{/* SVG favicon'i desteklemeyen eski tarayıcılar için PNG yedeği */}}
+<link rel="icon" href="{{ "apple-touch-icon.png" | relURL }}" sizes="180x180" type="image/png">
 {{/* Paylaşım görseli: sayfanın kendi `image` parametresi varsa o kullanılır.
      Yoksa hiç og:image basmayız; site genelinde varsayılan bir görsel yok. */}}
 {{ $ogImage := "" }}
