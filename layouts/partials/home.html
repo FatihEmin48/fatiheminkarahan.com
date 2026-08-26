@@ -1,8 +1,5 @@
 <div class="home">
   <section class="hero">
-    {{ with .Site.Params.avatarURL }}
-    <img class="avatar" src="{{ . | relURL }}" alt="{{ $.Site.Params.author }}">
-    {{ end }}
     <h1>{{ .Site.Params.author }}</h1>
     {{ with .Site.Params.info }}
     <h2>

@@ -20,11 +20,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ if .IsHome }}{{ $pageTitle }}{{ else }}{{ $pageTitle }} · {{ .Site.Title }}{{ end }}</title>
 <meta name="description" content="{{ .Site.Params.description }}">
-<link rel="icon" href="{{ .Site.Params.avatarURL | relURL }}">
-{{/* Paylaşım görseli: sayfanın kendi görseli varsa o, yoksa profil fotoğrafı.
-     Proje sayfalarına `image` eklenince WhatsApp/Twitter önizlemesinde
-     kişisel fotoğraf yerine uygulamanın ekran görüntüsü çıkar. */}}
-{{ $ogImage := .Site.Params.avatarURL }}
+{{/* Paylaşım görseli: sayfanın kendi `image` parametresi varsa o kullanılır.
+     Yoksa hiç og:image basmayız; site genelinde varsayılan bir görsel yok. */}}
+{{ $ogImage := "" }}
 {{ $ogDesc := .Site.Params.description }}
 {{ $large := false }}
 {{ with .Params.image }}{{ $ogImage = . }}{{ $large = true }}{{ end }}
@@ -35,18 +33,20 @@
 <meta property="og:title" content="{{ $pageTitle }}">
 <meta property="og:description" content="{{ $ogDesc }}">
 <meta property="og:url" content="{{ .Permalink }}">
-<meta property="og:image" content="{{ $ogImage | absURL }}">
+{{ with $ogImage }}
+<meta property="og:image" content="{{ . | absURL }}">
 {{ if $large }}
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="{{ $pageTitle }}">
+{{ end }}
 {{ end }}
 <meta property="og:site_name" content="{{ .Site.Title }}">
 <meta property="og:locale" content="{{ .Site.Language.Locale }}">
 <meta name="twitter:card" content="{{ if $large }}summary_large_image{{ else }}summary{{ end }}">
 <meta name="twitter:title" content="{{ $pageTitle }}">
 <meta name="twitter:description" content="{{ $ogDesc }}">
-<meta name="twitter:image" content="{{ $ogImage | absURL }}">
+{{ with $ogImage }}<meta name="twitter:image" content="{{ . | absURL }}">{{ end }}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha512-SfTiTlX6kk+qitfevl/7LibUOeJWlt9rbyDn92a1DqWOw9vWG2MFoays0sgObmWazO5BQPiFucnnEAjpAB+/Sw==" crossorigin="anonymous" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
 <link rel="stylesheet" href="{{ "css/cv-chat-widget.css" | relURL }}">
