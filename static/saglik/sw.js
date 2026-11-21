@@ -1,12 +1,14 @@
 /* sw.js — çevrimdışı kabuk. Veri her zaman localStorage'da; ağ yoksa uygulama yine açılır. */
 
-const CACHE = 'saglik-panel-v1.0.0';
+// Sürümü değiştirmek eski kabuğu attırır; yapay zekâ zinciri gibi js değişikliklerinden
+// sonra bunu artırmazsan telefonlar eski dosyayı önbellekten okumaya devam eder.
+const CACHE = 'saglik-panel-v1.2.0';
 const SHELL = [
   './', 'index.html', 'style.css', 'manifest.webmanifest', 'icon.svg',
   'js/app.js', 'js/charts.js', 'js/ocr-web.js', 'js/ai.js', 'js/social.js', 'js/sharecard.js',
   'js/core/core-util.js', 'js/core/core-parse.js', 'js/core/core-analysis.js',
   'js/core/core-store.js', 'js/core/core-api.js', 'js/core/config.js',
-  'js/core/core-coach.js',
+  'js/core/core-coach.js', 'js/core/core-export.js',
 ];
 
 self.addEventListener('install', (e) => {

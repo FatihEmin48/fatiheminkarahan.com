@@ -911,3 +911,45 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .btn-danger:hover:not(:disabled) { opacity: .9; }
 .btn-danger:active:not(:disabled) { transform: translateY(1px); }
 .btn-danger:disabled { opacity: .4; cursor: default; }
+
+
+/* ================= gün gün dışa aktarma ================= */
+
+.export-range {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+.export-range .field { margin-bottom: 0; min-width: 0; }
+.export-range input { min-height: 48px; }
+.export-note { margin-top: 8px; }
+.export-info { margin-top: 16px; }
+.export-info dd { overflow-wrap: anywhere; }
+
+.export-preview {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card-2);
+}
+.export-preview summary {
+  cursor: pointer;
+  padding: 11px 14px;
+  font-size: .86rem;
+  font-weight: 650;
+  color: var(--text-dim);
+}
+.export-preview pre {
+  margin: 0;
+  padding: 10px 14px 14px;
+  max-height: 300px;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  border-top: 1px solid var(--line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .7rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  white-space: pre;
+}

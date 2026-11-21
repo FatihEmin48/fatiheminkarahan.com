@@ -15,9 +15,11 @@ import { buildSummary, localAssessment, buildPrompt } from './core/core-coach.js
 import {
   hasAiKey, getAiKey, setAiKey, clearAiKey, ask as askAi,
   aiAvailable, aiServerReady, hasAiServer, aiServerMissing,
+  aiAllOut, aiKeyLabel, aiStatus, detectProvider, AI_CONTACT,
 } from './ai.js';
 import * as Soc from './social.js';
 import * as SC from './sharecard.js';
+import * as X from './core/core-export.js';
 
 const $ = (id) => document.getElementById(id);
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -484,6 +486,275 @@ async function shareCardCopy() {
   }
   await navigator.clipboard.write([new ClipboardItem({ 'image/png': shareBlob })]);
   toast('Panoya kopyalandı — yapıştırıp gönderebilirsin');
+}
+
+/* ================= gün gün dışa aktarma =================
+   Seçilen dönemin her günü tek dosyada. .md: yapay zekâya "değerlendir" diye gönderilecek
+   biçim (özet + günlük tablo + istek); .csv: Türkçe Excel'in doğrudan açtığı tablo.
+   Dosyayı core-export.js üretir; burada yalnız seçim ve paylaşma var. */
+
+// Sayfa kapanıp açılınca son seçim kalsın (oturum boyunca)
+const exportOpts = { preset: null, from: null, to: null, format: 'md', includeWeight: true };
+
+/** Analiz ekranında bakılan dönem → dışa aktarma seçimi. */
+function analysisExportRange() {
+  if (range === 'year') {
+    const y = new Date().getFullYear() + offset;
+    return { preset: `y${y}`, from: `${y}-01-01`, to: `${y}-12-31` };
+  }
+  if (range === 'month') {
+    const base = U.keyToDate(U.monthStart());
+    const d = new Date(base.getFullYear(), base.getMonth() + offset, 1);
+    return {
+      preset: 'custom',
+      from: U.dayKey(d),
+      to: U.dayKey(new Date(d.getFullYear(), d.getMonth() + 1, 0)),
+    };
+  }
+  const start = U.shiftDay(U.weekStart(), offset * 7);
+  return { preset: 'custom', from: start, to: U.shiftDay(start, 6) };
+}
+
+const exportBlob = (ex) => new Blob([(ex.bom ? '﻿' : '') + ex.text],
+  { type: `${ex.mime};charset=utf-8` });
+
+function exportSheet(initial = null) {
+  const presets = X.exportPresets(S.state.days, S.state.weights);
+  const lastDone = U.shiftDay(U.today(), -1);
+
+  if (initial) {
+    const hit = presets.find((p) => p.id === initial.preset);
+    exportOpts.preset = hit ? hit.id : 'custom';
+    exportOpts.from = initial.from;
+    exportOpts.to = initial.to;
+  } else if (!exportOpts.preset
+    || (exportOpts.preset !== 'custom' && !presets.some((p) => p.id === exportOpts.preset))) {
+    exportOpts.preset = presets[0].id;          // verisi olan en yeni yıl
+  }
+  const preset = () => presets.find((p) => p.id === exportOpts.preset) || null;
+  const pick = () => {
+    const p = preset();
+    return p ? { from: p.from, to: p.to } : { from: exportOpts.from, to: exportOpts.to };
+  };
+  const clampKey = (k) => (U.isValidKey(k) ? (k > lastDone ? lastDone : k) : lastDone);
+
+  const box = el('div', 'export-sheet');
+  box.appendChild(el('p', 'muted small',
+    'Seçtiğin dönemin <b>her günü</b> tek dosyada: günlük tablo, uygulamanın hesapladığı özet '
+    + '(hedef tutma, aylık ve haftalık döküm, haftanın günleri, kilo) ve sonda kısa bir '
+    + 'değerlendirme isteği. Dosyayı Claude’a ya da başka bir yapay zekâya gönderip '
+    + '<b>“değerlendir”</b> demen yeterli.'));
+
+  /* dönem */
+  box.appendChild(el('h3', 'sheet-label', 'Dönem'));
+  const chipRow = el('div', 'chips');
+  const custom = el('div', 'export-range');
+  const mkDate = (label) => {
+    const f = el('label', 'field');
+    f.innerHTML = `<span>${label}</span>`;
+    const i = el('input');
+    i.type = 'date';
+    i.max = lastDone;
+    f.appendChild(i);
+    custom.appendChild(f);
+    return i;
+  };
+  const fromIn = mkDate('Başlangıç');
+  const toIn = mkDate('Bitiş');
+  const fillDates = () => {
+    const { from, to } = pick();
+    fromIn.value = clampKey(from);
+    toIn.value = clampKey(to);
+  };
+
+  for (const c of [...presets, { id: 'custom', label: 'Özel aralık' }]) {
+    const b = el('button', 'chip' + (c.id === exportOpts.preset ? ' on' : ''), esc(c.label));
+    b.type = 'button';
+    b.dataset.id = c.id;
+    b.onclick = () => {
+      if (c.id === 'custom') {
+        const cur = pick();                       // özel aralık son seçimden başlasın
+        exportOpts.from = cur.from;
+        exportOpts.to = cur.to;
+      }
+      exportOpts.preset = c.id;
+      for (const x of chipRow.children) x.classList.toggle('on', x === b);
+      custom.hidden = c.id !== 'custom';
+      fillDates();
+      refresh();
+    };
+    chipRow.appendChild(b);
+  }
+  box.appendChild(chipRow);
+  custom.hidden = exportOpts.preset !== 'custom';
+  fillDates();
+  const onDate = () => {
+    if (U.isValidKey(fromIn.value)) exportOpts.from = fromIn.value;
+    if (U.isValidKey(toIn.value)) exportOpts.to = toIn.value;
+    refresh();
+  };
+  fromIn.onchange = onDate;
+  toIn.onchange = onDate;
+  box.appendChild(custom);
+
+  /* biçim */
+  box.appendChild(el('h3', 'sheet-label', 'Biçim'));
+  const seg = el('div', 'seg');
+  for (const [id, label] of [['md', 'Yapay zekâ için · .md'], ['csv', 'Excel için · .csv']]) {
+    const b = el('button', id === exportOpts.format ? 'on' : null, label);
+    b.type = 'button';
+    b.dataset.format = id;
+    b.onclick = () => {
+      exportOpts.format = id;
+      for (const x of seg.children) x.classList.toggle('on', x === b);
+      refresh();
+    };
+    seg.appendChild(b);
+  }
+  box.appendChild(seg);
+  const fmtNote = el('p', 'muted small export-note');
+  box.appendChild(fmtNote);
+
+  const wRow = el('label', 'check-row');
+  const wCb = el('input');
+  wCb.type = 'checkbox';
+  wCb.checked = exportOpts.includeWeight;
+  wCb.onchange = () => { exportOpts.includeWeight = wCb.checked; refresh(); };
+  wRow.appendChild(wCb);
+  wRow.appendChild(el('span', '', 'Kilo, boy ve hedef kiloyu ekle'));
+  box.appendChild(wRow);
+
+  /* özet + önizleme */
+  const info = el('dl', 'del-list export-info');
+  box.appendChild(info);
+  const warn = el('p', 'muted small export-note');
+  box.appendChild(warn);
+
+  const det = el('details', 'export-preview');
+  det.appendChild(el('summary', '', 'Önizleme'));
+  const pre = el('pre');
+  det.appendChild(pre);
+  box.appendChild(det);
+
+  /* eylemler */
+  let current = null;
+  let working = false;
+  const actions = el('div', 'share-actions');
+  const mk = (cls, label, fn) => {
+    const b = el('button', cls, label);
+    b.type = 'button';
+    b.onclick = async () => {
+      if (working || !current || current.empty) return;
+      working = true;
+      b.disabled = true;
+      try { await fn(current); } catch (e) { toast(e.message || 'Olmadı', { error: true }); }
+      b.disabled = false;
+      working = false;
+    };
+    actions.appendChild(b);
+    return b;
+  };
+  const buttons = [
+    mk('btn-primary', 'Paylaş', shareExport),
+    mk('btn-ghost', 'Kopyala', (ex) => copyText(ex.text, 'Kopyalandı — sohbete yapıştırabilirsin')),
+    mk('btn-ghost', isAndroidApp() ? 'Kaydet' : 'İndir', saveExport),
+  ];
+  box.appendChild(actions);
+
+  box.appendChild(el('p', 'about',
+    '<b>Paylaş</b> ile dosyayı doğrudan Claude uygulamasına ya da Dosyalar’a gönderebilir, '
+    + '<b>Kopyala</b> ile sohbete yapıştırabilirsin. Dosyada kullanıcı adın, e-postan ve '
+    + 'hesap anahtarların yer almaz. Yalnız tamamlanmış günler alınır; bugün dahil edilmez.'));
+
+  function refresh() {
+    const { from, to } = pick();
+    current = X.buildExport(S.state, {
+      from, to, format: exportOpts.format, includeWeight: exportOpts.includeWeight,
+    });
+    fmtNote.innerHTML = exportOpts.format === 'md'
+      ? 'Özet + günlük tablo + değerlendirme isteği; yapay zekânın doğru okuması için sütun '
+        + 'anlamları ve birimler dosyada yazılı.'
+      : 'Yalnız günlük tablo. Türkçe Excel’de çift tıklayınca sütunlara ayrılmış açılır '
+        + '(; ayırıcı, ondalık virgül).';
+
+    info.innerHTML = '';
+    for (const b of buttons) b.disabled = !!current.empty;
+    if (current.empty) {
+      info.hidden = true;
+      warn.innerHTML = 'Bu dönemde <b>tamamlanmış bir günün kaydı yok</b> (bugün henüz bitmediği '
+        + 'için sayılmaz). Başka bir dönem seç.';
+      pre.textContent = '';
+      return;
+    }
+    const r = current.range;
+    const st = current.stats;
+    const size = exportBlob(current).size;
+    const rows = [
+      ['Dönem', `${X.longDate(r.from)} – ${X.longDate(r.to)}`],
+      ['Gün', `${U.nf(r.dayCount)} · ${U.nf(st.logged)} kayıtlı (%${Math.round((st.logged / r.dayCount) * 100)})`],
+    ];
+    if (exportOpts.includeWeight) rows.push(['Kilo ölçümü', U.nf(st.weight ? st.weight.n : 0)]);
+    rows.push(['Dosya', `${current.filename} · ${size < 1024 ? `${size} B` : `${U.nf(size / 1024, 0)} KB`}`]);
+    for (const [k, v] of rows) {
+      info.appendChild(el('dt', '', k));
+      info.appendChild(el('dd', '', esc(v)));
+    }
+    info.hidden = false;
+
+    const notes = [];
+    if (r.startCut) notes.push(`İlk kaydın ${esc(X.longDate(r.from))}; dönemin öncesi boş olduğu için alınmadı.`);
+    if (r.todayCut) notes.push('Bugün henüz bitmediği için dahil edilmedi.');
+    warn.innerHTML = notes.join(' ');
+    if (det.open) pre.textContent = current.text;
+  }
+  det.addEventListener('toggle', () => { if (det.open) pre.textContent = current?.text || ''; });
+
+  openSheet('Gün gün dışa aktar', box);
+  refresh();
+
+  // Başka cihazdan (ör. Android'in telefondan aldığı adımlar) gelen kayıtlar da dosyaya girsin
+  if (cloudOn()) {
+    syncNow({ quiet: true }).then(() => { if (box.isConnected) refresh(); });
+  }
+}
+
+async function shareExport(ex) {
+  const blob = exportBlob(ex);
+  const title = 'Sağlık Panel verilerim';
+  // Android uygulaması: yerel paylaşım sayfası
+  if (window.SaglikNative?.shareFile) {
+    if (await window.SaglikNative.shareFile(blob, ex.filename, title)) return;
+  }
+  // Tarayıcı: önce asıl dosya; Chrome .md paylaşmadığı için aynı içerik .txt olarak da denenir.
+  // Arada await yok: Safari paylaşımı ancak dokunuşun hemen ardından açıyor.
+  const tries = [[ex.filename, ex.mime]];
+  if (ex.mime !== 'text/plain') tries.push([ex.filename.replace(/\.\w+$/, '.txt'), 'text/plain']);
+  for (const [name, type] of tries) {
+    const file = new File([blob], name, { type });
+    if (!navigator.canShare?.({ files: [file] })) continue;
+    try {
+      await navigator.share({ files: [file], title });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;          // kullanıcı vazgeçti
+      break;
+    }
+  }
+  await saveExport(ex);
+}
+
+async function saveExport(ex) {
+  if (window.SaglikNative?.saveFile) {
+    const where = await window.SaglikNative.saveFile(exportBlob(ex), ex.filename);
+    if (where) { toast(`Kaydedildi: <b>${esc(where)}</b>`); return; }
+  }
+  if (isAndroidApp()) {
+    // WebView blob indirmesini yapmaz; sessizce "indirildi" demeyelim
+    toast('Kaydedilemedi — Paylaş ile Dosyalar’a gönderebilirsin', { error: true });
+    return;
+  }
+  download(ex.filename, (ex.bom ? '﻿' : '') + ex.text, ex.mime);
+  toast(`İndirildi: <b>${esc(ex.filename)}</b>`);
 }
 
 /* ================= çizim: arkadaşlar & sıralama ================= */
@@ -1765,6 +2036,9 @@ async function handleHashIngest() {
 
 /* ================= değerlendirme + soru-cevap ================= */
 
+const DEV_CONTACT_MSG = 'Şu an bütün yapay zekâ sağlayıcıları yanıt veremiyor. '
+  + `Sorun sürerse geliştirici ile iletişime geç: ${AI_CONTACT}`;
+
 let coachBusy = false;
 let coachSearch = false;
 
@@ -1772,7 +2046,9 @@ function renderCoachCard() {
   const pill = $('coach-mode');
   if (pill) {
     pill.textContent = aiServerReady() ? 'yapay zekâ (sunucu)'
-      : hasAiKey() ? 'yapay zekâ (cihaz)' : 'cihazda';
+      : hasAiKey() ? `yapay zekâ (${aiKeyLabel()})`
+        : aiAllOut() ? 'yapay zekâ tükendi'
+          : 'cihazda';
   }
   const sw = $('coach-search');
   if (sw) sw.classList.toggle('on', coachSearch);
@@ -1797,6 +2073,27 @@ function showCoach(text, sources = [], { html = false } = {}) {
   }
 }
 
+/**
+ * Yapay zekâ hatasını kullanıcıya gösterilecek biçime çevirir.
+ * Zincirin sonu geldiyse (sunucudaki bütün sağlayıcılar tükendi) iletişim
+ * adresi tıklanabilir olur — kullanıcı ne yapacağını bilsin.
+ */
+function aiHataHtml(e) {
+  const msg = String(e?.message || 'Yapay zekâ yanıt vermedi');
+  if (e?.code !== 'tumu-tukendi') {
+    return `<span style="color:var(--danger)">Yapay zekâ: ${esc(msg)}</span>`;
+  }
+  const adres = e.contact || 'fatiheminkarahan.com';
+  const i = msg.indexOf(adres);
+  const once = i >= 0 ? msg.slice(0, i) : `${msg} `;
+  const sonra = i >= 0 ? msg.slice(i + adres.length) : '';
+  return '<span style="color:var(--danger)">'
+    + esc(once)
+    + `<a href="https://${encodeURI(adres)}" target="_blank" rel="noopener">${esc(adres)}</a>`
+    + esc(sonra)
+    + '</span>';
+}
+
 async function coachRequest({ mode, question = '' }) {
   if (coachBusy) return;
   coachBusy = true;
@@ -1806,18 +2103,21 @@ async function coachRequest({ mode, question = '' }) {
   const summary = buildSummary(S.state.days, S.state.weights, S.profile());
   const local = localAssessment(summary);
 
-  if (mode === 'assess' && !aiAvailable()) {
-    showCoach(local);
-    coachBusy = false;
-    btn.disabled = false;
-    return;
-  }
-  if (mode === 'ask' && !aiAvailable()) {
-    showCoach(aiServerMissing()
-      ? 'Bu kurulumda sunucu tarafı yayınlanmamış, o yüzden soru soramıyorum. '
-        + 'Ayarlar → Değerlendirme bölümünden kendi ücretsiz anahtarını eklersen hemen çalışır.'
-      : 'Soru sorabilmek için yapay zekâ gerekiyor. Ayarlar → Değerlendirme '
-        + 'bölümünden açabilirsin.');
+  if (!aiAvailable()) {
+    // Zincirin sonu az önce görüldüyse sessiz kalma, nedenini söyle.
+    if (aiAllOut()) {
+      const govde = mode === 'assess' ? `${esc(local)}<br><br>` : '';
+      showCoach(govde + aiHataHtml({ code: 'tumu-tukendi', message: DEV_CONTACT_MSG }),
+        [], { html: true });
+    } else if (mode === 'assess') {
+      showCoach(local);
+    } else {
+      showCoach(aiServerMissing()
+        ? 'Bu kurulumda sunucu tarafı yayınlanmamış, o yüzden soru soramıyorum. '
+          + 'Ayarlar → Değerlendirme bölümünden kendi ücretsiz anahtarını eklersen hemen çalışır.'
+        : 'Soru sorabilmek için yapay zekâ gerekiyor. Ayarlar → Değerlendirme '
+          + 'bölümünden açabilirsin.');
+    }
     coachBusy = false;
     btn.disabled = false;
     return;
@@ -1836,15 +2136,15 @@ async function coachRequest({ mode, question = '' }) {
       : buildPrompt(summary);
 
     const out = await askAi({ mode, question, summary, search: coachSearch, devicePrompt });
-    const via = out.via === 'sunucu' ? '' : ' <span style="color:var(--text-faint)">(cihaz anahtarı)</span>';
-    showCoach(esc(out.text).replace(/\n/g, '<br>') + via, out.sources, { html: true });
+    // Hangi sağlayıcının yanıtladığını göster: zincir devreye girdiğinde görünür olsun.
+    const kim = out.via === 'sunucu' ? out.provider : `cihaz · ${out.provider || 'anahtar'}`;
+    const rozet = kim ? ` <span style="color:var(--text-faint)">(${esc(kim)})</span>` : '';
+    showCoach(esc(out.text).replace(/\n/g, '<br>') + rozet, out.sources, { html: true });
     if (out.remaining != null && out.remaining <= 3) {
       toast(`Bugün ${out.remaining} soru hakkın kaldı`);
     }
   } catch (e) {
-    const msg = esc(e.message || 'Yapay zekâ yanıt vermedi');
-    showCoach(`${esc(local)}<br><br><span style="color:var(--danger)">Yapay zekâ: ${msg}</span>`,
-      [], { html: true });
+    showCoach(`${esc(local)}<br><br>${aiHataHtml(e)}`, [], { html: true });
   } finally {
     btn.disabled = false;
     coachBusy = false;
@@ -1860,10 +2160,23 @@ function askCoach() {
   coachRequest({ mode: 'ask', question: q });
 }
 
+/** Cihaza anahtar alınabilecek ücretsiz servisler. */
+const AI_KEY_LINKS = [
+  ['Gemini', 'https://aistudio.google.com/apikey'],
+  ['Groq', 'https://console.groq.com/keys'],
+  ['OpenRouter', 'https://openrouter.ai/keys'],
+  ['Cerebras', 'https://cloud.cerebras.ai/'],
+];
+
 function aiSheet() {
   const box = el('div');
 
-  if (aiServerMissing()) {
+  if (aiAllOut()) {
+    box.appendChild(el('p', 'muted small',
+      '<b>Sunucudaki bütün yapay zekâ sağlayıcıları şu an tükendi.</b> Bir süre sonra '
+      + 'kendiliğinden düzelebilir. Beklemek istemiyorsan aşağıya kendi ücretsiz '
+      + `anahtarını girebilirsin; sürerse geliştirici ile iletişime geç: ${esc(AI_CONTACT)}.`));
+  } else if (aiServerMissing()) {
     box.appendChild(el('p', 'muted small',
       'Bu kurulumda <b>sunucu tarafı yayınlanmamış</b> — yapay zekâ şu an sunucu '
       + 'üzerinden çalışmıyor. Aşağıya kendi ücretsiz anahtarını girersen hemen '
@@ -1872,7 +2185,7 @@ function aiSheet() {
     box.appendChild(el('p', 'muted small',
       'Hesabınla giriş yaptığın için yapay zekâ <b>sunucu üzerinden</b> çalışır: '
       + 'anahtar girmene gerek yok, kişisel bir sınır dahilinde ücretsizdir. '
-      + 'Sunucu tarafı kapalıysa aşağıya kendi ücretsiz anahtarını girebilirsin.'));
+      + 'Sunucuda birden çok sağlayıcı sırayla denenir — biri tükenirse diğeri devralır.'));
   } else {
     box.appendChild(el('p', 'muted small',
       'Değerlendirmeyi ve soruları yapay zekâ yanıtlasın istersen ücretsiz bir anahtar '
@@ -1880,12 +2193,31 @@ function aiSheet() {
       + 'özet sayılardır (ad, e-posta, görsel gönderilmez).'));
   }
 
+  // Sunucuda hangi sağlayıcıların kurulu olduğunu göster (model çağırmaz, hak harcamaz).
+  if (hasAiServer()) {
+    const durum = el('p', 'about', 'Sunucu sağlayıcıları okunuyor…');
+    box.appendChild(durum);
+    aiStatus().then((s) => {
+      if (!s) { durum.textContent = 'Sunucu sağlayıcı listesi okunamadı.'; return; }
+      if (!s.providers?.length) {
+        durum.innerHTML = '<b>Sunucuda hiç sağlayıcı anahtarı yok.</b> '
+          + 'Supabase → Edge Functions → Secrets bölümünden en az bir anahtar ekle '
+          + '(docs/yapay-zeka.md).';
+        return;
+      }
+      const liste = s.providers
+        .map((p) => esc(p.label) + (p.keys > 1 ? ` ×${p.keys}` : ''))
+        .join(' → ');
+      durum.innerHTML = `Sunucu sırası: <b>${liste}</b> · günlük hak: ${s.limit}`;
+    }).catch(() => { durum.textContent = 'Sunucu sağlayıcı listesi okunamadı.'; });
+  }
+
   const f = el('label', 'field');
   f.style.marginTop = '10px';
   f.innerHTML = '<span>Kendi anahtarın (isteğe bağlı)</span>';
   const input = el('input');
   input.type = 'text';
-  input.placeholder = 'AI... ile başlayan anahtar';
+  input.placeholder = 'AIza… / gsk_… / sk-or-… / csk-…';
   input.value = getAiKey();
   input.autocapitalize = 'off';
   input.spellcheck = false;
@@ -1895,17 +2227,25 @@ function aiSheet() {
   const msg = el('p', 'muted small');
   box.appendChild(msg);
 
+  // Anahtarın hangi servise ait olduğunu yazarken söyle — yanlış yere yapıştırma olmasın.
+  const tani = () => {
+    const v = input.value.trim();
+    msg.textContent = v ? `${detectProvider(v).label} anahtarı olarak tanındı.` : '';
+  };
+  input.oninput = tani;
+  tani();
+
   const save = el('button', 'btn-primary wide', 'Kaydet ve dene');
   save.onclick = async () => {
     save.disabled = true;
     msg.textContent = 'Deneniyor…';
     try {
       setAiKey(input.value);
-      await askAi({ mode: 'ask', question: 'Yalnızca "tamam" yaz.', summary: {},
+      const out = await askAi({ mode: 'ask', question: 'Yalnızca "tamam" yaz.', summary: {},
         devicePrompt: 'Yalnızca "tamam" yaz.' });
-      msg.innerHTML = '<b>Çalışıyor.</b>';
+      msg.innerHTML = `<b>Çalışıyor.</b> (${esc(out.provider || detectProvider(input.value).label)})`;
       renderCoachCard();
-      setTimeout(closeSheet, 800);
+      setTimeout(closeSheet, 900);
     } catch (e) {
       clearAiKey();
       msg.innerHTML = `<span style="color:var(--danger)">${esc(e.message || 'Olmadı')}</span>`;
@@ -1914,13 +2254,22 @@ function aiSheet() {
   };
   box.appendChild(save);
 
-  const help = el('button', 'btn-ghost wide', 'Ücretsiz anahtar nasıl alınır?');
-  help.style.marginTop = '8px';
-  help.onclick = () => window.open('https://aistudio.google.com/apikey', '_blank', 'noopener');
-  box.appendChild(help);
+  box.appendChild(el('p', 'about', 'Ücretsiz anahtar alabileceğin yerler:'));
+  const links = el('div');
+  links.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px';
+  for (const [label, url] of AI_KEY_LINKS) {
+    const a = document.createElement('a');
+    a.className = 'chip';
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = label;
+    links.appendChild(a);
+  }
+  box.appendChild(links);
 
   if (hasAiKey()) {
-    const rm = el('button', 'set-action danger', 'Cihazdaki anahtarı kaldır');
+    const rm = el('button', 'set-action danger', `Cihazdaki anahtarı kaldır (${esc(aiKeyLabel())})`);
     rm.style.marginTop = '12px';
     rm.onclick = () => {
       clearAiKey();
@@ -2117,11 +2466,15 @@ function settingsSheet() {
   bAi.appendChild(aiBtn);
   gAi.appendChild(bAi);
   gAi.appendChild(el('p', 'about', aiServerReady()
-    ? 'Açık (sunucu): değerlendirme ve sorular yapay zekâ ile yanıtlanır, anahtar girmene gerek yok.'
+    ? 'Açık (sunucu): birden çok sağlayıcı sırayla denenir, biri tükenirse diğeri devralır. '
+      + 'Anahtar girmene gerek yok.'
     : hasAiKey()
-      ? 'Açık (bu cihazdaki anahtarla).'
-      : 'Kapalı: değerlendirme cihazında, kurallara göre yazılır. Girişliysen sunucu '
-        + 'yapay zekâsı otomatik denenir; istersen kendi ücretsiz anahtarını da girebilirsin.'));
+      ? `Açık (bu cihazdaki ${esc(aiKeyLabel())} anahtarıyla).`
+      : aiAllOut()
+        ? 'Sunucudaki bütün sağlayıcılar şu an tükendi; değerlendirme cihazında, kurallara '
+          + `göre yazılıyor. Sürerse: ${esc(AI_CONTACT)}`
+        : 'Kapalı: değerlendirme cihazında, kurallara göre yazılır. Girişliysen sunucu '
+          + 'yapay zekâsı otomatik denenir; istersen kendi ücretsiz anahtarını da girebilirsin.'));
   box.appendChild(gAi);
 
   /* görünüm */
@@ -2150,9 +2503,9 @@ function settingsSheet() {
   g5.appendChild(el('div', 'set-title', 'Veri'));
   const b5 = el('div', 'set-box');
 
-  const csv = el('button', 'set-action', 'CSV olarak indir');
-  csv.onclick = () => { download(`saglik-panel-${U.today()}.csv`, S.exportCSV(), 'text/csv'); };
-  b5.appendChild(csv);
+  const exp = el('button', 'set-action', 'Gün gün dışa aktar (yapay zekâ / Excel)');
+  exp.onclick = () => exportSheet();
+  b5.appendChild(exp);
 
   const json = el('button', 'set-action', 'JSON yedek indir');
   json.onclick = () => { download(`saglik-panel-${U.today()}.json`, S.exportJSON(), 'application/json'); };
@@ -2207,6 +2560,7 @@ function settingsSheet() {
 function wire() {
   bindSocial();
   $('btn-share-card').onclick = shareCardSheet;
+  $('btn-export-period').onclick = () => exportSheet(analysisExportRange());
   $('auth-form').addEventListener('submit', doAuth);
   $('auth-mode').onclick = (e) => {
     const b = e.target.closest('button[data-mode]');
@@ -2360,6 +2714,7 @@ async function boot() {
     render,
     showApp,
     openDeleteSheet: deleteAccountSheet,
+    openExportSheet: exportSheet,
     get view() { return view; },
     set view(v) { view = v; },
     ready: true,
