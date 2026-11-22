@@ -8,9 +8,25 @@ import {
 import {
   weekReport, monthReport, weightReport, stepStreak, missingDays, dayScore,
 } from './core-analysis.js';
+import { weekSummary, weekStreak, finished, GRUPLAR, KATEGORI_AD } from './core-workout.js';
+
+/** Antrenman özeti (son iki hafta); antrenman yoksa null. */
+function workoutBrief(workouts) {
+  const all = finished(workouts);
+  if (!all.length) return null;
+  const bu = weekSummary(workouts, weekStart());
+  const gecen = weekSummary(workouts, shiftDay(weekStart(), -7));
+  const grup = (g) => Object.fromEntries(GRUPLAR.filter((k) => g[k]).map((k) => [KATEGORI_AD[k], Math.round(g[k] * 10) / 10]));
+  return {
+    buHafta: { antrenman: bu.sessions, set: bu.sets, dakika: bu.minutes, kasGrubuSet: grup(bu.groups) },
+    gecenHafta: { antrenman: gecen.sessions, set: gecen.sets, kasGrubuSet: grup(gecen.groups) },
+    duzenliHafta: weekStreak(workouts),
+    sonAntrenman: all[all.length - 1].day,
+  };
+}
 
 /** Değerlendirme için gereken sayıları tek nesnede toplar (kişisel bilgi içermez). */
-export function buildSummary(days, weights, profile = {}) {
+export function buildSummary(days, weights, profile = {}, workouts = {}) {
   const w = weekReport(days, weekStart(), profile);
   const prevW = weekReport(days, shiftDay(weekStart(), -7), profile);
   const m = monthReport(days, monthStart(), profile);
@@ -69,6 +85,7 @@ export function buildSummary(days, weights, profile = {}) {
       hedefeHaftaTahmini: wr.etaWeeks,
     },
     seri: streak,
+    antrenman: workoutBrief(workouts),
     eksikGunSayisi: eksik.length,
     enIyiGun: enIyi ? { gun: enIyi.day, adim: enIyi.steps } : null,
     enDusukGun: enDusuk ? { gun: enDusuk.day, adim: enDusuk.steps } : null,
@@ -161,6 +178,7 @@ export function buildPrompt(s) {
     '2) İyi giden bir şey ve düzeltilmesi gereken bir şey,',
     '3) Önümüzdeki hafta için 2-3 uygulanabilir, ölçülebilir öneri,',
     '4) Kilo eğilimi hakkında kısa bir yorum (veri varsa).',
+    '5) Antrenman verisi varsa: düzen ve kas gruplarının dengesi hakkında tek cümle.',
     'Kurallar: en fazla 180 kelime, madde işareti kullanma, abartılı övgü yok,',
     'tıbbi teşhis koyma, verideki sayıları kullan, gereksiz uyarı cümleleri ekleme.',
     '',

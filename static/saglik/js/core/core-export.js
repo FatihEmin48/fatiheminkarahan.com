@@ -23,6 +23,10 @@
 import {
   dayKey, keyToDate, shiftDay, dayRange, daysBetween, today, weekStart, weekdayName, isValidKey,
 } from './core-util.js';
+import { periodStats, finished, GRUPLAR, KATEGORI_AD, fmtDur } from './core-workout.js';
+
+/** Bitmiş antrenmanların günleri (dönem sınırları için). */
+const workoutDays = (workouts) => finished(workouts).map((w) => w.day).filter(isValidKey);
 
 const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
@@ -94,7 +98,7 @@ export function longDate(key) {
 /* ---------------- dönem ---------------- */
 
 /** Kaydı olan ilk ve son gün (aktivite ya da kilo). */
-export function dataBounds(days = {}, weights = {}, { includeWeight = true } = {}) {
+export function dataBounds(days = {}, weights = {}, { includeWeight = true, workouts = {} } = {}) {
   let first = null;
   let last = null;
   const see = (k) => {
@@ -105,22 +109,23 @@ export function dataBounds(days = {}, weights = {}, { includeWeight = true } = {
   if (includeWeight) {
     for (const [k, v] of Object.entries(weights)) if (isValidKey(k) && hasWeight(v)) see(k);
   }
+  for (const k of workoutDays(workouts)) see(k);
   return { first, last };
 }
 
-function anyDataBetween(days, weights, from, to, includeWeight) {
+function anyDataBetween(days, weights, from, to, includeWeight, workouts = {}) {
   for (const [k, v] of Object.entries(days)) if (k >= from && k <= to && hasActivity(v)) return true;
   if (includeWeight) {
     for (const [k, v] of Object.entries(weights)) if (k >= from && k <= to && hasWeight(v)) return true;
   }
-  return false;
+  return workoutDays(workouts).some((k) => k >= from && k <= to);
 }
 
 /**
  * Hazır dönemler: verisi olan her takvim yılı (yeniden eskiye), son 12 ay / 90 / 30 gün, tümü.
  * Hepsi dünde biter — bugün henüz tamamlanmadı.
  */
-export function exportPresets(days = {}, weights = {}, todayKey = today()) {
+export function exportPresets(days = {}, weights = {}, todayKey = today(), workouts = {}) {
   const last = shiftDay(todayKey, -1);
   const years = new Set();
   for (const [k, v] of Object.entries(days)) {
@@ -129,13 +134,14 @@ export function exportPresets(days = {}, weights = {}, todayKey = today()) {
   for (const [k, v] of Object.entries(weights)) {
     if (isValidKey(k) && k <= last && hasWeight(v)) years.add(Number(k.slice(0, 4)));
   }
+  for (const k of workoutDays(workouts)) if (k <= last) years.add(Number(k.slice(0, 4)));
   const out = [...years].sort((a, b) => b - a).map((y) => ({
     id: `y${y}`, label: String(y), from: `${y}-01-01`, to: `${y}-12-31`, year: y,
   }));
   out.push({ id: 'd365', label: 'Son 12 ay', from: shiftDay(last, -364), to: last });
   out.push({ id: 'd90', label: 'Son 90 gün', from: shiftDay(last, -89), to: last });
   out.push({ id: 'd30', label: 'Son 30 gün', from: shiftDay(last, -29), to: last });
-  const { first } = dataBounds(days, weights);
+  const { first } = dataBounds(days, weights, { workouts });
   out.push({ id: 'all', label: 'Tümü', from: first && first <= last ? first : last, to: last });
   return out;
 }
@@ -145,7 +151,7 @@ export function exportPresets(days = {}, weights = {}, todayKey = today()) {
  * önceki kısım kırpılır. empty: aralıkta tamamlanmış bir günün kaydı yok.
  */
 export function resolveRange(days = {}, weights = {}, from, to,
-  { todayKey = today(), includeWeight = true } = {}) {
+  { todayKey = today(), includeWeight = true, workouts = {} } = {}) {
   let a = isValidKey(from) ? from : todayKey;
   let b = isValidKey(to) ? to : todayKey;
   if (a > b) [a, b] = [b, a];
@@ -163,13 +169,13 @@ export function resolveRange(days = {}, weights = {}, from, to,
     out.to = lastDone;
     out.todayCut = a <= todayKey;
   }
-  const { first } = dataBounds(days, weights, { includeWeight });
+  const { first } = dataBounds(days, weights, { includeWeight, workouts });
   if (first && first > out.from && first <= out.to) {
     out.from = first;
     out.startCut = true;
   }
   out.empty = !first || out.from > out.to
-    || !anyDataBetween(days, weights, out.from, out.to, includeWeight);
+    || !anyDataBetween(days, weights, out.from, out.to, includeWeight, workouts);
   out.dayCount = out.empty ? 0 : daysBetween(out.to, out.from) + 1;
   return out;
 }
@@ -177,13 +183,19 @@ export function resolveRange(days = {}, weights = {}, from, to,
 /* ---------------- satırlar ---------------- */
 
 /** Aralıktaki HER gün için bir satır; verisi olmayan gün de boş satır olarak yer alır. */
-export function buildRows(days = {}, weights = {}, from, to, { includeWeight = true } = {}) {
+export function buildRows(days = {}, weights = {}, from, to, { includeWeight = true, byDay = null } = {}) {
   return dayRange(from, to).map((k) => {
     const d = days[k] || {};
     const w = (includeWeight && weights[k]) || {};
     const row = { day: k, wd: keyToDate(k).getDay() };
     for (const m of ACT) row[m.key] = num(d[m.key]);
     for (const m of WGT) row[m.key] = includeWeight ? num(w[m.key]) : null;
+    // o günün antrenman(lar)ı: süre, çalışma seti, hacim (kg × tekrar)
+    const t = byDay?.[k];
+    row.w_names = t ? t.names.join(' + ') || 'Antrenman' : null;
+    row.w_min = t ? t.minutes : null;
+    row.w_sets = t ? t.sets : null;
+    row.w_vol = t ? t.volume : null;
     row.logged = ACT.some((m) => row[m.key] != null);
     row.source = row.logged && d.source ? SOURCE[d.source] || String(d.source) : null;
     const notes = [];
@@ -200,6 +212,7 @@ function columnsFor(rows, { includeWeight = true } = {}) {
   return {
     act: ACT.filter((m) => m.core || has(m.key)),
     wgt: includeWeight ? WGT.filter((m) => m.core || has(m.key)) : [],
+    wk: rows.some((r) => r.w_sets != null),
     source: rows.some((r) => r.source),
     note: rows.some((r) => r.note),
   };
@@ -439,6 +452,7 @@ function bucketTable(list, { kind, includeWeight }) {
 
 function dailyCsv(rows, cols) {
   const head = ['tarih', 'gun', ...cols.act.map((m) => m.col), ...cols.wgt.map((m) => m.col)];
+  if (cols.wk) head.push('antrenman', 'antrenman_dk', 'set', 'hacim_kg');
   if (cols.source) head.push('kaynak');
   if (cols.note) head.push('not');
   const lines = [head.join(',')];
@@ -449,6 +463,7 @@ function dailyCsv(rows, cols) {
       ...cols.act.map((m) => fx(r[m.key], m.dp)),
       ...cols.wgt.map((m) => fx(r[m.key], m.dp)),
     ];
+    if (cols.wk) cells.push((r.w_names || '').replace(/`/g, "'"), fx(r.w_min), fx(r.w_sets), fx(r.w_vol));
     if (cols.source) cells.push(r.source || '');
     // ters tırnak kod bloğunu kapatabilir
     if (cols.note) cells.push((r.note || '').replace(/`/g, "'"));
@@ -457,7 +472,9 @@ function dailyCsv(rows, cols) {
   return lines.join('\n');
 }
 
-function toMarkdown({ rows, cols, stats: s, profile: p, range: r, includeWeight, now, todayKey, title }) {
+const fmtHours = (min) => (min >= 60 ? `${Math.floor(min / 60)} sa ${min % 60} dk` : `${min} dk`);
+
+function toMarkdown({ rows, cols, stats: s, profile: p, range: r, includeWeight, now, todayKey, title, ws = null }) {
   const out = [];
   const add = (...lines) => out.push(...lines);
   const w = includeWeight ? s.weight : null;
@@ -599,12 +616,38 @@ function toMarkdown({ rows, cols, stats: s, profile: p, range: r, includeWeight,
     }
   }
 
+  /* antrenman */
+  if (ws?.sessions) {
+    add('### Antrenman', '');
+    add(`- Antrenman: ${ws.sessions} (haftada ortalama ${fx(ws.perWeek, 1)}); toplam süre ${fmtHours(ws.minutes)}`);
+    add(`- Çalışma seti: ${ws.sets} (ısınma setleri hariç); toplam hacim ${fx(ws.volume)} kg (kg × tekrar)`);
+    if (ws.records) add(`- Dönemde kişisel rekor kırılan hareket sayısı: ${ws.records}`);
+    const g = GRUPLAR.filter((k) => ws.groups[k]).map((k) => `${KATEGORI_AD[k]} ${fx(ws.groups[k], 1)}`);
+    if (g.length) add(`- Kas grubu başına toplam set (yardımcı kas ½ sayılır): ${g.join(' · ')}`);
+    add('');
+    const top = ws.exercises.slice(0, 12);
+    if (top.length) {
+      add('En sık yapılan hareketler (1TM: Epley formülüyle tahmini bir tekrar maksimum):', '');
+      add(mdTable(['Hareket', 'Antrenman', 'Set', 'İlk 1TM', 'Son 1TM', 'Değişim', 'En iyi'], top.map((e) => {
+        const ch = e.firstE1rm != null && e.lastE1rm != null && e.sessions > 1 ? e.lastE1rm - e.firstE1rm : null;
+        const best = e.bestKg != null ? `${fx(e.bestKg, 1)} kg`
+          : e.bestReps != null ? `${e.bestReps} tekrar` : e.bestSec != null ? fmtDur(e.bestSec) : '';
+        return [e.name, e.sessions, e.sets, fx(e.firstE1rm, 1), fx(e.lastE1rm, 1),
+          ch == null ? '' : `${signed(ch)} kg`, best];
+      })), '');
+    }
+  }
+
   /* günlük tablo */
   add('## Günlük tablo', '');
   add(`Her gün bir satır (${rows.length} satır). Sütunlar:`, '');
   add('- `tarih`: YYYY-AA-GG');
   add('- `gun`: haftanın günü (Pzt, Sal, Çar, Per, Cum, Cmt, Paz)');
   for (const m of [...cols.act, ...cols.wgt]) add(`- \`${m.col}\`: ${m.doc}`);
+  if (cols.wk) {
+    add('- `antrenman`: o gün kaydettiğim antrenmanın adı (Antrenman sekmesi)');
+    add('- `antrenman_dk`: antrenman süresi, dk · `set`: çalışma seti (ısınma hariç) · `hacim_kg`: kg × tekrar toplamı');
+  }
   if (cols.source) {
     const seen = [...new Set(rows.map((x) => x.source).filter(Boolean))];
     add(`- \`kaynak\`: verinin geliş yolu — ${seen.map((x) => `${x} = ${SOURCE_DOC[x] || x}`).join(', ')}`);
@@ -621,6 +664,10 @@ function toMarkdown({ rows, cols, stats: s, profile: p, range: r, includeWeight,
   ];
   if (w && w.n > 1) {
     asks.push('**Kilo:** değişimin hızı, hedefime göre durumum ve aktiviteyle ilişkisi.');
+  }
+  if (ws?.sessions) {
+    asks.push('**Antrenman:** düzenim, güç ilerlemem (1TM değişimi) ve kas gruplarının dengesi; '
+      + 'ihmal ettiğim bir kas grubu var mı?');
   }
   asks.push('**Güçlü yanlarım** ve en çok gelişmeye açık 2–3 konu.');
   asks.push('**Önümüzdeki dönem için 3–5 öneri:** her biri ölçülebilir olsun; hedeflerimi '
@@ -643,6 +690,7 @@ function toCSV(rows, cols) {
   const SEP = ';';
   const dec = (v, dp) => fx(v, dp).replace('.', ',');
   const head = ['Tarih', 'Gün', ...cols.act.map((m) => m.label), ...cols.wgt.map((m) => m.label)];
+  if (cols.wk) head.push('Antrenman', 'Antrenman (dk)', 'Set', 'Hacim (kg)');
   if (cols.source) head.push('Kaynak');
   if (cols.note) head.push('Not');
   const lines = [head.map((h) => csvCell(h, SEP)).join(SEP)];
@@ -653,6 +701,7 @@ function toCSV(rows, cols) {
       ...cols.act.map((m) => dec(r[m.key], m.dp)),
       ...cols.wgt.map((m) => dec(r[m.key], m.dp)),
     ];
+    if (cols.wk) cells.push(safeText(r.w_names || ''), dec(r.w_min, 0), dec(r.w_sets, 0), dec(r.w_vol, 0));
     if (cols.source) cells.push(r.source || '');
     if (cols.note) cells.push(safeText(r.note));
     lines.push(cells.map((c) => csvCell(c, SEP)).join(SEP));
@@ -675,17 +724,19 @@ function fullYearOf({ from, to }) {
  *   bom: dosyaya yazarken başa UTF-8 BOM eklenmeli (Excel Türkçe harfleri ancak böyle tanıyor).
  */
 export function buildExport(data = {}, opts = {}) {
-  const { days = {}, weights = {}, profile = {} } = data;
+  const { days = {}, weights = {}, profile = {}, workouts = {} } = data;
   const {
     from, to, format = 'md', includeWeight = true, todayKey = today(), now = new Date(),
   } = opts;
 
-  const range = resolveRange(days, weights, from, to, { todayKey, includeWeight });
+  const range = resolveRange(days, weights, from, to, { todayKey, includeWeight, workouts });
   if (range.empty) return { empty: true, range };
 
-  const rows = buildRows(days, weights, range.from, range.to, { includeWeight });
+  const ws = periodStats(workouts, range.from, range.to);
+  const rows = buildRows(days, weights, range.from, range.to, { includeWeight, byDay: ws.byDay });
   const cols = columnsFor(rows, { includeWeight });
   const stats = computeStats(rows, profile);
+  stats.workouts = ws;
   const year = fullYearOf(range.requested);
   const base = year ? `saglik-panel-${year}` : `saglik-panel-${range.from}_${range.to}`;
 
@@ -698,7 +749,7 @@ export function buildExport(data = {}, opts = {}) {
   const title = year ? `${year} yılı` : `${longDate(range.from)} – ${longDate(range.to)}`;
   return {
     empty: false, format: 'md', range, rows, stats,
-    text: toMarkdown({ rows, cols, stats, profile, range, includeWeight, now, todayKey, title }),
+    text: toMarkdown({ rows, cols, stats, profile, range, includeWeight, now, todayKey, title, ws }),
     filename: `${base}.md`, mime: 'text/markdown', bom: false,
   };
 }

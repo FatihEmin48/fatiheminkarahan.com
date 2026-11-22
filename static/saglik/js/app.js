@@ -20,6 +20,7 @@ import {
 import * as Soc from './social.js';
 import * as SC from './sharecard.js';
 import * as X from './core/core-export.js';
+import * as Wk from './workout.js';
 
 const $ = (id) => document.getElementById(id);
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -225,12 +226,12 @@ function render() {
   applyTheme();
   const p = S.profile();
   $('top-eyebrow').textContent = p.username ? `@${p.username}` : (localOnly ? 'yalnız bu cihaz' : 'sağlık paneli');
-  $('top-title').textContent =
-    view === 'today' ? 'Bugün' : view === 'analysis' ? 'Analiz' : 'Arkadaşlar';
+  $('top-title').textContent = { today: 'Bugün', analysis: 'Analiz', workout: 'Antrenman' }[view] || 'Arkadaşlar';
   $('btn-sync').hidden = !cloudOn();
 
   $('view-today').hidden = view !== 'today';
   $('view-analysis').hidden = view !== 'analysis';
+  $('view-workout').hidden = view !== 'workout';
   $('view-social').hidden = view !== 'social';
   for (const t of document.querySelectorAll('.tab')) {
     t.classList.toggle('on', t.dataset.view === view);
@@ -238,6 +239,7 @@ function render() {
 
   if (view === 'today') renderToday();
   else if (view === 'analysis') renderAnalysis();
+  else if (view === 'workout') Wk.renderWorkout();
   else renderSocial();
 }
 
@@ -519,7 +521,7 @@ const exportBlob = (ex) => new Blob([(ex.bom ? '﻿' : '') + ex.text],
   { type: `${ex.mime};charset=utf-8` });
 
 function exportSheet(initial = null) {
-  const presets = X.exportPresets(S.state.days, S.state.weights);
+  const presets = X.exportPresets(S.state.days, S.state.weights, U.today(), S.state.workouts);
   const lastDone = U.shiftDay(U.today(), -1);
 
   if (initial) {
@@ -541,7 +543,7 @@ function exportSheet(initial = null) {
   const box = el('div', 'export-sheet');
   box.appendChild(el('p', 'muted small',
     'Seçtiğin dönemin <b>her günü</b> tek dosyada: günlük tablo, uygulamanın hesapladığı özet '
-    + '(hedef tutma, aylık ve haftalık döküm, haftanın günleri, kilo) ve sonda kısa bir '
+    + '(hedef tutma, aylık ve haftalık döküm, haftanın günleri, kilo, antrenmanlar) ve sonda kısa bir '
     + 'değerlendirme isteği. Dosyayı Claude’a ya da başka bir yapay zekâya gönderip '
     + '<b>“değerlendir”</b> demen yeterli.'));
 
@@ -1040,6 +1042,7 @@ function renderToday() {
     back.hidden = true;
   }
 
+  Wk.renderTodayCard($('today-workout'), key);
   renderWeightCard();
   renderMissing();
   renderUploads();
@@ -2100,7 +2103,7 @@ async function coachRequest({ mode, question = '' }) {
   const btn = mode === 'ask' ? $('coach-ask') : $('coach-run');
   btn.disabled = true;
 
-  const summary = buildSummary(S.state.days, S.state.weights, S.profile());
+  const summary = buildSummary(S.state.days, S.state.weights, S.profile(), S.state.workouts);
   const local = localAssessment(summary);
 
   if (!aiAvailable()) {
@@ -2477,6 +2480,33 @@ function settingsSheet() {
           + 'yapay zekâsı otomatik denenir; istersen kendi ücretsiz anahtarını da girebilirsin.'));
   box.appendChild(gAi);
 
+  /* antrenman */
+  const gW = el('div', 'set-group');
+  gW.appendChild(el('div', 'set-title', 'Antrenman'));
+  const bW = el('div', 'set-box');
+  const toggleRow = (label, key) => {
+    const row = el('label', 'field inline toggle');
+    row.innerHTML = `<span>${label}</span>`;
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = !!S.state.wprefs[key];
+    cb.onchange = () => S.setWorkoutPrefs({ [key]: cb.checked });
+    row.appendChild(cb);
+    bW.appendChild(row);
+  };
+  toggleRow('Set bitince dinlenme sayacı başlasın', 'restAuto');
+  toggleRow('Dinlenme bitince ses çal', 'sound');
+  const cred = el('button', 'set-action', 'Hareket kaynakları ve lisanslar');
+  cred.onclick = () => Wk.creditsSheet();
+  bW.appendChild(cred);
+  gW.appendChild(bW);
+  gW.appendChild(el('p', 'about', S.state.cloud.workoutsMissing
+    ? 'Antrenmanlar şimdilik <b>yalnız bu cihazda</b>: bulutta antrenman tablosu kurulu değil '
+      + '(Supabase → SQL Editor → <b>db/schema-workout.sql</b>). Kurulunca kendiliğinden eşitlenir.'
+    : cloudOn() ? 'Antrenmanların ve programların hesabınla birlikte eşitlenir.'
+      : 'Antrenmanlar bu cihazda saklanır.'));
+  box.appendChild(gW);
+
   /* görünüm */
   const g4 = el('div', 'set-group');
   g4.appendChild(el('div', 'set-title', 'Görünüm'));
@@ -2685,6 +2715,10 @@ async function boot() {
   S.load();
   applyTheme();
   wire();
+  Wk.initWorkout({
+    $, el, esc, toast, openSheet, closeSheet, busy, unbusy, S, U, api, render,
+    cloudOn, isAndroidApp, view: () => view,
+  });
 
   if (isCloudEnabled() && api.isLoggedIn()) {
     showApp();
@@ -2715,6 +2749,7 @@ async function boot() {
     showApp,
     openDeleteSheet: deleteAccountSheet,
     openExportSheet: exportSheet,
+    Wk,
     get view() { return view; },
     set view(v) { view = v; },
     ready: true,

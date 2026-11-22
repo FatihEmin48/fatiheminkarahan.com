@@ -119,6 +119,9 @@
       <p class="hint" id="shortcut-hint" hidden></p>
     </section>
 
+    <!-- o günün antrenmanı (js/workout.js çizer) -->
+    <section class="card" id="today-workout" hidden></section>
+
     <!-- kilo kartı -->
     <section class="card" id="weight-card">
       <div class="card-head">
@@ -231,6 +234,9 @@
     </section>
   </main>
 
+  <!-- ---------- ANTRENMAN (içerik js/workout.js ile çizilir) ---------- -->
+  <main class="view" id="view-workout" hidden></main>
+
   <!-- ---------- ARKADAŞLAR & SIRALAMA ---------- -->
   <main class="view" id="view-social" hidden>
 
@@ -307,6 +313,11 @@
     <button class="tab" data-view="analysis">
       <svg viewBox="0 0 24 24"><path d="M5 20V10m7 10V4m7 16v-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
       <span>Analiz</span>
+    </button>
+    <button class="tab" data-view="workout">
+      <svg viewBox="0 0 24 24"><path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <span>Antrenman</span>
+      <i class="tab-dot" id="workout-dot" hidden></i>
     </button>
     <button class="tab" data-view="social">
       <svg viewBox="0 0 24 24"><path d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm10 8v-1.5a3.5 3.5 0 0 0-2.6-3.4M15.5 4.6a3.5 3.5 0 0 1 0 6.8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>

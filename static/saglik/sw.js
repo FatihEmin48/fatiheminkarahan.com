@@ -2,18 +2,29 @@
 
 // Sürümü değiştirmek eski kabuğu attırır; yapay zekâ zinciri gibi js değişikliklerinden
 // sonra bunu artırmazsan telefonlar eski dosyayı önbellekten okumaya devam eder.
-const CACHE = 'saglik-panel-v1.2.0';
+const CACHE = 'saglik-panel-v1.3.0';
 const SHELL = [
   './', 'index.html', 'style.css', 'manifest.webmanifest', 'icon.svg',
   'js/app.js', 'js/charts.js', 'js/ocr-web.js', 'js/ai.js', 'js/social.js', 'js/sharecard.js',
+  'js/workout.js', 'js/exlib.js', 'js/bodymap.js',
   'js/core/core-util.js', 'js/core/core-parse.js', 'js/core/core-analysis.js',
   'js/core/core-store.js', 'js/core/core-api.js', 'js/core/config.js',
-  'js/core/core-coach.js', 'js/core/core-export.js',
+  'js/core/core-coach.js', 'js/core/core-export.js', 'js/core/core-workout.js',
+  'data/hareketler.json',
 ];
+
+/** Spor salonunda çoğu zaman çekim yok: hareket çizimleri de baştan önbelleğe alınır (~1,5 MB). */
+async function cacheExerciseImages(c) {
+  try {
+    const doc = await (await fetch('data/hareketler.json')).json();
+    const files = [...new Set(doc.hareketler.flatMap((h) => h.gorsel.map((g) => g.f)))];
+    await Promise.allSettled(files.map((f) => c.add(f)));
+  } catch (e) { /* çizimler açıldıkça da önbelleğe girer */ }
+}
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE)
-    .then((c) => Promise.allSettled(SHELL.map((u) => c.add(u))))
+    .then((c) => Promise.allSettled(SHELL.map((u) => c.add(u))).then(() => cacheExerciseImages(c)))
     .then(() => self.skipWaiting()));
 });
 

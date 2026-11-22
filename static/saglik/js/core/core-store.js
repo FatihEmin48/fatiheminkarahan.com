@@ -29,7 +29,13 @@ function fresh() {
     profile: { ...DEFAULT_PROFILE },
     days: {},        // 'YYYY-MM-DD' → {steps, distance_km, active_kcal, exercise_min, stand_hours, note, source}
     weights: {},     // 'YYYY-MM-DD' → {kg, body_fat, note, source, photo_path}
-    dirty: { days: {}, weights: {}, profile: false },
+    workouts: {},    // id → antrenman (bkz. core-workout.js); silinen: {deleted:true} eşitlenene kadar
+    routines: {},    // id → program
+    activeWorkout: null,   // sürmekte olan antrenman — yalnız bu cihazda, bitince workouts'a geçer
+    exFav: [],       // favori hareket kimlikleri
+    wprefs: { restAuto: true, sound: true },
+    dirty: { days: {}, weights: {}, profile: false, workouts: {}, routines: {} },
+    cloud: { workoutsMissing: false },   // sunucuda antrenman tablosu yoksa (schema-workout.sql)
     lastSync: null,
     lastPromptDay: null,   // günlük soru en son hangi gün gösterildi
   };
@@ -62,11 +68,19 @@ function migrate(raw) {
     profile: { ...base.profile, ...(raw.profile || {}) },
     days: raw.days && typeof raw.days === 'object' ? raw.days : {},
     weights: raw.weights && typeof raw.weights === 'object' ? raw.weights : {},
+    workouts: raw.workouts && typeof raw.workouts === 'object' ? raw.workouts : {},
+    routines: raw.routines && typeof raw.routines === 'object' ? raw.routines : {},
+    activeWorkout: raw.activeWorkout && typeof raw.activeWorkout === 'object' ? raw.activeWorkout : null,
+    exFav: Array.isArray(raw.exFav) ? raw.exFav : [],
+    wprefs: { ...base.wprefs, ...(raw.wprefs || {}) },
     dirty: {
       days: raw.dirty?.days || {},
       weights: raw.dirty?.weights || {},
       profile: !!raw.dirty?.profile,
+      workouts: raw.dirty?.workouts || {},
+      routines: raw.dirty?.routines || {},
     },
+    cloud: { ...base.cloud, ...(raw.cloud || {}) },
   };
   s.schema = SCHEMA;
   for (const k of Object.keys(s.days)) if (!isValidKey(k)) delete s.days[k];
@@ -234,6 +248,66 @@ export function setTheme(theme) {
   commit('theme');
 }
 
+/* ---------------- antrenman ---------------- */
+
+const stamp = () => new Date().toISOString();
+
+/** Bitmiş antrenmanı kaydeder (yeni ya da düzenlenmiş). */
+export function saveWorkout(w, { dirty = true } = {}) {
+  if (!w?.id) return null;
+  const next = { ...w, updated_at: stamp() };
+  state.workouts[w.id] = next;
+  if (dirty) state.dirty.workouts[w.id] = true;
+  commit('workout');
+  return next;
+}
+
+/** Siler: bulutta da silinsin diye eşitlenene kadar işaretli kalır. */
+export function deleteWorkout(id) {
+  const w = state.workouts[id];
+  if (!w) return;
+  state.workouts[id] = { id, deleted: true, updated_at: stamp() };
+  state.dirty.workouts[id] = true;
+  commit('workout');
+}
+
+/** Sürmekte olan antrenman. Her set işaretlenişinde hemen yazılır: uygulama kapansa da kaybolmaz. */
+export function setActiveWorkout(w) {
+  state.activeWorkout = w ? { ...w, updated_at: stamp() } : null;
+  save({ now: true });
+  emit('active');
+}
+
+export function saveRoutine(r, { dirty = true } = {}) {
+  if (!r?.id) return null;
+  const next = { ...r, updated_at: stamp() };
+  state.routines[r.id] = next;
+  if (dirty) state.dirty.routines[r.id] = true;
+  commit('routine');
+  return next;
+}
+
+export function deleteRoutine(id) {
+  if (!state.routines[id]) return;
+  state.routines[id] = { id, deleted: true, updated_at: stamp() };
+  state.dirty.routines[id] = true;
+  commit('routine');
+}
+
+export function toggleFav(exId) {
+  const key = String(exId);
+  const i = state.exFav.indexOf(key);
+  if (i >= 0) state.exFav.splice(i, 1);
+  else state.exFav.push(key);
+  commit('fav');
+  return i < 0;
+}
+
+export function setWorkoutPrefs(patch) {
+  state.wprefs = { ...state.wprefs, ...patch };
+  commit('wprefs');
+}
+
 export function markOnboarded() {
   state.onboarded = true;
   save({ now: true });
@@ -247,7 +321,104 @@ export function markPrompted(key = today()) {
 export const dirtyCount = () =>
   Object.keys(state.dirty.days).length
   + Object.keys(state.dirty.weights).length
+  + Object.keys(state.dirty.workouts).length
+  + Object.keys(state.dirty.routines).length
   + (state.dirty.profile ? 1 : 0);
+
+/* ---------------- antrenman eşitlemesi ----------------
+   sp_workouts / sp_routines (db/schema-workout.sql). Tablo kurulmamışsa eşitleme hata vermez:
+   kayıtlar yerelde kirli kalır ve tablo kurulunca kendiliğinden gönderilir. */
+
+const isMissingTable = (e) => e?.status === 404
+  || /PGRST205|42P01|schema cache|does not exist/i.test(`${e?.body?.code || ''} ${e?.body?.message || ''} ${e?.message || ''}`);
+
+// Toplu upsert'te PostgREST sütunları ilk satırdan alır: her satır AYNI anahtarlarla gönderilmeli.
+const workoutRow = (uid, w) => (w.deleted
+  ? {
+    id: w.id, user_id: uid, day: null, started_at: null, ended_at: null, name: null, data: null,
+    deleted: true, updated_at: w.updated_at,
+  }
+  : {
+    id: w.id,
+    user_id: uid,
+    day: w.day,
+    started_at: w.started_at,
+    ended_at: w.ended_at,
+    name: w.name || null,
+    data: { items: w.items || [], note: w.note || '', routine_id: w.routine_id || null },
+    deleted: false,
+    updated_at: w.updated_at,
+  });
+
+const workoutFromRow = (r) => ({
+  id: r.id,
+  name: r.name || 'Antrenman',
+  started_at: r.started_at,
+  ended_at: r.ended_at,
+  day: r.day,
+  routine_id: r.data?.routine_id || null,
+  note: r.data?.note || '',
+  items: Array.isArray(r.data?.items) ? r.data.items : [],
+  updated_at: r.updated_at,
+});
+
+const routineRow = (uid, r) => (r.deleted
+  ? { id: r.id, user_id: uid, name: null, data: null, deleted: true, updated_at: r.updated_at }
+  : { id: r.id, user_id: uid, name: r.name, data: { items: r.items || [], note: r.note || '' }, deleted: false, updated_at: r.updated_at });
+
+const routineFromRow = (r) => ({
+  id: r.id, name: r.name, items: Array.isArray(r.data?.items) ? r.data.items : [], note: r.data?.note || '', updated_at: r.updated_at,
+});
+
+async function pushTable(api, uid, kind) {
+  const table = kind === 'workouts' ? 'sp_workouts' : 'sp_routines';
+  const toRow = kind === 'workouts' ? workoutRow : routineRow;
+  const keys = Object.keys(state.dirty[kind]);
+  if (!keys.length) return 0;
+  const rows = keys.map((k) => state[kind][k]).filter(Boolean).map((x) => toRow(uid, x));
+  if (rows.length) await api.upsert(table, rows, { onConflict: 'id' });
+  for (const k of keys) {
+    delete state.dirty[kind][k];
+    if (state[kind][k]?.deleted) delete state[kind][k];   // silindiği bulutta da işlendi
+  }
+  return rows.length;
+}
+
+async function pushWorkouts(api, uid) {
+  try {
+    const n = await pushTable(api, uid, 'workouts') + await pushTable(api, uid, 'routines');
+    state.cloud.workoutsMissing = false;
+    return n;
+  } catch (e) {
+    if (isMissingTable(e)) { state.cloud.workoutsMissing = true; return 0; }
+    throw e;
+  }
+}
+
+async function pullWorkouts(api) {
+  try {
+    let n = 0;
+    const ws = await api.select('sp_workouts', 'select=*&order=started_at.desc&limit=3000');
+    for (const r of ws || []) {
+      if (state.dirty.workouts[r.id]) continue;
+      if (r.deleted) delete state.workouts[r.id];
+      else state.workouts[r.id] = workoutFromRow(r);
+      n++;
+    }
+    const rs = await api.select('sp_routines', 'select=*&limit=500');
+    for (const r of rs || []) {
+      if (state.dirty.routines[r.id]) continue;
+      if (r.deleted) delete state.routines[r.id];
+      else state.routines[r.id] = routineFromRow(r);
+      n++;
+    }
+    state.cloud.workoutsMissing = false;
+    return n;
+  } catch (e) {
+    if (isMissingTable(e)) { state.cloud.workoutsMissing = true; return 0; }
+    throw e;
+  }
+}
 
 /* ---------------- eşitleme ---------------- */
 
@@ -298,6 +469,8 @@ export async function push(api) {
     pushed++;
   }
 
+  pushed += await pushWorkouts(api, uid);
+
   save({ now: true });
   return { pushed };
 }
@@ -340,6 +513,8 @@ export async function pull(api, { days = 400 } = {}) {
       ingest_token: prof.ingest_token,
     };
   }
+
+  pulled += await pullWorkouts(api);
 
   state.lastSync = new Date().toISOString();
   save({ now: true });
@@ -396,6 +571,11 @@ export function importJSON(text) {
   }
   for (const [k, v] of Object.entries(inc.weights)) {
     if (!state.weights[k]) { state.weights[k] = v; state.dirty.weights[k] = true; added++; }
+  }
+  for (const kind of ['workouts', 'routines']) {
+    for (const [k, v] of Object.entries(inc[kind])) {
+      if (!state[kind][k] && !v?.deleted) { state[kind][k] = v; state.dirty[kind][k] = true; added++; }
+    }
   }
   save({ now: true });
   emit('import');
