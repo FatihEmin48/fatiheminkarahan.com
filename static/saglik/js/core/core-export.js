@@ -8,6 +8,7 @@
      satırı kafadan toplarken ve tarihten haftanın gününü çıkarırken yanılıyor.
    - CSV (.csv): Türkçe Excel'in çift tıklayınca sütunlara ayırdığı biçim — UTF-8 BOM,
      ";" ayırıcı, ondalık virgül.
+   - Antrenman setleri (.csv): her set bir satır (Excel'de süzmek / pivot için).
 
    Kurallar:
    - Yalnız TAMAMLANMIŞ günler: bugün yarım gün olduğu için dışarıda kalır (yoksa
@@ -15,6 +16,8 @@
    - Dönem ilk kayıttan önce başlıyorsa ilk kayda kırpılır; uygulama kullanılmadan
      önceki aylar "veri yok" satırlarıyla dolmasın. Dönem içindeki boşluklar ise olduğu
      gibi kalır — onlar da bilgi.
+   - Bitmiş antrenman tamamlanmış veridir: dönem dünde bitiyorsa (yani bugüne uzanıyorsa)
+     bugün bitirilen antrenmanlar da antrenman bölümlerine girer; günlük tabloya girmez.
    - Boş hücre = o gün veri girilmedi; sıfır değildir.
    - Kullanıcı adı, e-posta ve kısayol anahtarı (ingest_token) dosyaya hiç girmez.
 
@@ -23,7 +26,10 @@
 import {
   dayKey, keyToDate, shiftDay, dayRange, daysBetween, today, weekStart, weekdayName, isValidKey,
 } from './core-util.js';
-import { periodStats, finished, GRUPLAR, KATEGORI_AD, fmtDur } from './core-workout.js';
+import {
+  periodStats, finished, GRUPLAR, KATEGORI_AD, fmtDur, workoutSummary, newRecords, groupRecords,
+  setVolume, e1rm, SET_TIP,
+} from './core-workout.js';
 
 /** Bitmiş antrenmanların günleri (dönem sınırları için). */
 const workoutDays = (workouts) => finished(workouts).map((w) => w.day).filter(isValidKey);
@@ -472,22 +478,165 @@ function dailyCsv(rows, cols) {
   return lines.join('\n');
 }
 
+/* ---------------- antrenman günlüğü (gün gün, set set) ---------------- */
+
+const SET_MARK = { w: 'ısınma', d: 'drop', f: 'tükeniş' };
+
+/** "14:05" (antrenmanın başladığı yerel saat) */
+function hhmm(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * Setin makine dostu yazımı: "62.5 kg × 8", "12 tekrar", "+10 kg × 6", "45 sn", "20 dk · 3.2 km".
+ * dec: ondalık ayırıcı (Markdown '.', Türkçe Excel ',').
+ */
+function setText(s, measure = 'agirlik', dec = '.') {
+  const f = (v, dp = 0) => fx(v, dp).replace('.', dec);
+  const kg = num(s?.kg);
+  const reps = num(s?.reps);
+  const sec = num(s?.sec);
+  const km = num(s?.km);
+  if (measure === 'sure') return sec != null ? `${f(sec)} sn` : '';
+  if (measure === 'kardiyo') {
+    return [sec != null ? `${f(sec / 60, 1)} dk` : '', km != null ? `${f(km, 2)} km` : ''].filter(Boolean).join(' · ');
+  }
+  if (measure === 'tekrar') {
+    if (reps == null) return '';
+    return kg > 0 ? `+${f(kg, 1)} kg × ${f(reps)}` : `${f(reps)} tekrar`;
+  }
+  if (kg == null && reps == null) return '';
+  return `${kg == null ? '?' : f(kg, 1)} kg × ${reps == null ? '?' : f(reps)}`;
+}
+
+/** Bir hareketin setleri tek satırda; art arda aynı setler "60 kg × 8 (3 set)" diye birleşir. */
+function setsText(item, dec = '.') {
+  const m = item?.measure || 'agirlik';
+  const parts = [];
+  for (const s of (item?.sets || []).filter((x) => x.done)) {
+    const txt = setText(s, m, dec);
+    if (!txt) continue;
+    const mark = SET_MARK[s.type] || '';
+    const prev = parts[parts.length - 1];
+    if (prev && prev.txt === txt && prev.mark === mark) prev.n++;
+    else parts.push({ txt, mark, n: 1 });
+  }
+  return parts.map((p) => {
+    const extra = [p.mark, p.n > 1 ? `${p.n} set` : ''].filter(Boolean).join(', ');
+    return extra ? `${p.txt} (${extra})` : p.txt;
+  }).join(' · ');
+}
+
+/** Bir günün antrenman(lar)ı tek hücrede: "Squat: 60 kg × 8 (3 set) | Plank: 45 sn (3 set)". */
+function dayExercisesText(list, dec) {
+  return list.flatMap((w) => (w.items || []).map((it) => {
+    const t = setsText(it, dec);
+    return t ? `${clean(it.name)}: ${t}` : '';
+  })).filter(Boolean).join(' | ');
+}
+
+function prText(p) {
+  const v = (x) => (p.kind === 'reps' ? fx(x) : p.kind === 'sec' ? `${fx(x)} sn` : `${fx(x, 1)} kg`);
+  return `${p.label} ${v(p.value)} (önceki ${v(p.prev)})`;
+}
+
+/** Markdown: her antrenman bir başlık, altında hareketler ve setler. */
+function workoutLog(list, workouts) {
+  const out = [];
+  for (const w of list) {
+    const s = workoutSummary(w);
+    out.push(`### ${w.day} ${WD_SHORT[keyToDate(w.day).getDay()]} · ${clean(w.name) || 'Antrenman'}`, '');
+    const meta = [];
+    const t = hhmm(w.started_at);
+    if (t) meta.push(`başlangıç ${t}`);
+    meta.push(`${s.minutes} dk`, `${s.exercises} hareket`, `${s.sets} set`);
+    if (s.volume) meta.push(`hacim ${fx(s.volume)} kg`);
+    if (s.km) meta.push(`${fx(s.km, 2)} km`);
+    out.push(`- ${meta.join(' · ')}`);
+    for (const it of w.items || []) {
+      const txt = setsText(it);
+      if (!txt) continue;
+      out.push(`- ${clean(it.name) || 'Hareket'}: ${txt}${clean(it.note) ? ` — not: ${clean(it.note)}` : ''}`);
+    }
+    const prs = groupRecords(newRecords(w, workouts));
+    if (prs.length) {
+      out.push(`- Rekor: ${prs.map((g) => `${clean(g.name)} — ${g.items.map(prText).join(', ')}`).join('; ')}`);
+    }
+    if (clean(w.note)) out.push(`- Not: ${clean(w.note)}`);
+    out.push('');
+  }
+  return out;
+}
+
+/** Excel: her set bir satır. */
+function toSetsCSV(list) {
+  const SEP = ';';
+  const dec = (v, dp = 0) => fx(v, dp).replace('.', ',');
+  const head = ['Tarih', 'Gün', 'Başlangıç', 'Antrenman', 'Antrenman (dk)', 'Sıra', 'Hareket', 'Kategori',
+    'Set', 'Set türü', 'Kg', 'Tekrar', 'Süre (sn)', 'Mesafe (km)', 'Hacim (kg)', 'Tahmini 1TM (kg)', 'Not'];
+  const lines = [head.map((h) => csvCell(h, SEP)).join(SEP)];
+  for (const w of list) {
+    const minutes = workoutSummary(w).minutes;
+    let order = 0;
+    for (const it of w.items || []) {
+      const sets = (it.sets || []).filter((x) => x.done);
+      if (!sets.length) continue;
+      order++;
+      const m = it.measure || 'agirlik';
+      sets.forEach((s, i) => {
+        const vol = setVolume(s, m);
+        const est = m === 'agirlik' && s.type !== 'w' ? e1rm(s.kg, s.reps) : null;
+        lines.push([
+          w.day,
+          WD_SHORT[keyToDate(w.day).getDay()],
+          hhmm(w.started_at),
+          safeText(clean(w.name) || 'Antrenman'),
+          dec(minutes),
+          order,
+          safeText(clean(it.name)),
+          KATEGORI_AD[it.cat] || '',
+          i + 1,
+          SET_TIP[s.type] || SET_TIP.n,
+          dec(num(s.kg), 2),
+          dec(num(s.reps)),
+          dec(num(s.sec)),
+          dec(num(s.km), 2),
+          vol ? dec(vol, 1) : '',
+          dec(est, 1),
+          i === 0 ? safeText(clean(it.note)) : '',
+        ].map((c) => csvCell(c, SEP)).join(SEP));
+      });
+    }
+  }
+  return lines.join('\r\n') + '\r\n';
+}
+
 const fmtHours = (min) => (min >= 60 ? `${Math.floor(min / 60)} sa ${min % 60} dk` : `${min} dk`);
 
-function toMarkdown({ rows, cols, stats: s, profile: p, range: r, includeWeight, now, todayKey, title, ws = null }) {
+function toMarkdown({
+  rows, cols, stats: s, profile: p, range: r, includeWeight, now, todayKey, title, ws = null, wList = [], workouts = {},
+}) {
   const out = [];
   const add = (...lines) => out.push(...lines);
   const w = includeWeight ? s.weight : null;
 
   add(`# Sağlık Panel: ${title}, gün gün`, '');
-  add(`Günlük aktivite${includeWeight ? ' ve kilo' : ''} kayıtlarım. Özet bölümündeki sayıları `
-    + 'uygulama hesapladı; altında her günün satırı var.', '');
+  add(`Günlük aktivite${includeWeight ? ', kilo' : ''}${ws?.sessions ? ' ve antrenman' : ''} kayıtlarım. Özet bölümündeki sayıları `
+    + 'uygulama hesapladı; altında her günün satırı'
+    + (ws?.sessions ? ' ve her antrenmanın hareket hareket, set set dökümü' : '') + ' var.', '');
   add(`- **Dönem:** ${longDate(r.from)} – ${longDate(r.to)} (${r.dayCount} gün)`);
   if (r.startCut) {
     add(`- İstenen dönem ${longDate(r.requested.from)} tarihinde başlıyor, ama ilk kaydım `
       + `${longDate(r.from)}; tablo oradan başlıyor.`);
   }
-  if (r.todayCut) add(`- Bugün (${longDate(todayKey)}) henüz bitmediği için dahil edilmedi.`);
+  if (r.todayCut) {
+    add(ws?.todayIncluded
+      ? `- Bugün (${longDate(todayKey)}) henüz bitmediği için günlük tabloya girmedi; bugün bitirdiğim `
+        + 'antrenman(lar) antrenman bölümlerinde var.'
+      : `- Bugün (${longDate(todayKey)}) henüz bitmediği için dahil edilmedi.`);
+  }
   add(`- **Oluşturuldu:** ${longDate(dayKey(now))}, Sağlık Panel`);
   add('- **Okuma kuralları:** boş hücre o gün veri girilmedi demektir, sıfır değildir. '
     + 'Ortalamalar yalnız verisi olan günlerden hesaplandı. Sayılarda ondalık ayırıcı nokta, '
@@ -622,6 +771,7 @@ function toMarkdown({ rows, cols, stats: s, profile: p, range: r, includeWeight,
     add(`- Antrenman: ${ws.sessions} (haftada ortalama ${fx(ws.perWeek, 1)}); toplam süre ${fmtHours(ws.minutes)}`);
     add(`- Çalışma seti: ${ws.sets} (ısınma setleri hariç); toplam hacim ${fx(ws.volume)} kg (kg × tekrar)`);
     if (ws.records) add(`- Dönemde kişisel rekor kırılan hareket sayısı: ${ws.records}`);
+    add('- Her antrenmanın hareket ve set dökümü aşağıda, **Antrenman günlüğü** bölümünde.');
     const g = GRUPLAR.filter((k) => ws.groups[k]).map((k) => `${KATEGORI_AD[k]} ${fx(ws.groups[k], 1)}`);
     if (g.length) add(`- Kas grubu başına toplam set (yardımcı kas ½ sayılır): ${g.join(' · ')}`);
     add('');
@@ -654,6 +804,18 @@ function toMarkdown({ rows, cols, stats: s, profile: p, range: r, includeWeight,
   }
   if (cols.note) add('- `not`: o güne yazdığım not');
   add('', '```csv', dailyCsv(rows, cols), '```', '');
+
+  /* antrenman günlüğü: gün gün, set set */
+  if (wList.length) {
+    add('## Antrenman günlüğü', '');
+    add(`Her antrenman (${wList.length}) eskiden yeniye; hareketler yaptığım sırayla. Set yazımı: `
+      + '`60 kg × 8` ağırlık × tekrar · `12 tekrar` ya da `+10 kg × 6` vücut ağırlığı · `45 sn` süre · '
+      + '`20 dk · 3.2 km` kardiyo. Art arda aynı setler `(3 set)` diye birleştirildi. `ısınma` setleri '
+      + 'hacme ve rekora sayılmaz; `drop` ağırlığı düşürerek ara vermeden devam, `tükeniş` son tekrara kadar. '
+      + 'Hacim = kg × tekrar (vücut ağırlığı hareketlerinde yalnız eklenen ağırlık). Rekor: o güne kadarki '
+      + 'en iyiyi geçen set (1TM: Epley formülüyle tahmini bir tekrar maksimum).', '');
+    add(...workoutLog(wList, workouts));
+  }
 
   /* istek: uzun verinin SONUNDA (model önce veriyi okusun) */
   const asks = [
@@ -690,7 +852,7 @@ function toCSV(rows, cols) {
   const SEP = ';';
   const dec = (v, dp) => fx(v, dp).replace('.', ',');
   const head = ['Tarih', 'Gün', ...cols.act.map((m) => m.label), ...cols.wgt.map((m) => m.label)];
-  if (cols.wk) head.push('Antrenman', 'Antrenman (dk)', 'Set', 'Hacim (kg)');
+  if (cols.wk) head.push('Antrenman', 'Antrenman (dk)', 'Set', 'Hacim (kg)', 'Hareketler');
   if (cols.source) head.push('Kaynak');
   if (cols.note) head.push('Not');
   const lines = [head.map((h) => csvCell(h, SEP)).join(SEP)];
@@ -701,7 +863,9 @@ function toCSV(rows, cols) {
       ...cols.act.map((m) => dec(r[m.key], m.dp)),
       ...cols.wgt.map((m) => dec(r[m.key], m.dp)),
     ];
-    if (cols.wk) cells.push(safeText(r.w_names || ''), dec(r.w_min, 0), dec(r.w_sets, 0), dec(r.w_vol, 0));
+    if (cols.wk) {
+      cells.push(safeText(r.w_names || ''), dec(r.w_min, 0), dec(r.w_sets, 0), dec(r.w_vol, 0), safeText(r.w_ex || ''));
+    }
     if (cols.source) cells.push(r.source || '');
     if (cols.note) cells.push(safeText(r.note));
     lines.push(cells.map((c) => csvCell(c, SEP)).join(SEP));
@@ -719,7 +883,8 @@ function fullYearOf({ from, to }) {
 /**
  * Dışa aktarma dosyasını üretir.
  * data: { days, weights, profile } (core-store state'i doğrudan verilebilir)
- * opts: { from, to, format: 'md'|'csv', includeWeight, todayKey, now }
+ * opts: { from, to, format: 'md'|'csv'|'sets', includeWeight, todayKey, now }
+ *   'sets': antrenman setleri, her set bir satır (Excel). Dönemde antrenman yoksa empty + reason 'workouts'.
  * @returns {empty:true, range} | {empty:false, format, text, filename, mime, bom, range, rows, stats}
  *   bom: dosyaya yazarken başa UTF-8 BOM eklenmeli (Excel Türkçe harfleri ancak böyle tanıyor).
  */
@@ -732,14 +897,30 @@ export function buildExport(data = {}, opts = {}) {
   const range = resolveRange(days, weights, from, to, { todayKey, includeWeight, workouts });
   if (range.empty) return { empty: true, range };
 
-  const ws = periodStats(workouts, range.from, range.to);
+  // Bitmiş antrenman tamamlanmış veridir: dönem bugüne uzanıyorsa bugünküler de girer (günlük tabloya değil).
+  const all = finished(workouts);
+  const wTo = range.to === shiftDay(todayKey, -1) && all.some((w) => w.day === todayKey) ? todayKey : range.to;
+  const wList = all.filter((w) => w.day >= range.from && w.day <= wTo);
+  const ws = periodStats(workouts, range.from, wTo);
+  ws.todayIncluded = wTo !== range.to;
   const rows = buildRows(days, weights, range.from, range.to, { includeWeight, byDay: ws.byDay });
+  const listByDay = {};
+  for (const w of wList) (listByDay[w.day] || (listByDay[w.day] = [])).push(w);
+  for (const r of rows) r.w_ex = listByDay[r.day] ? dayExercisesText(listByDay[r.day], ',') || null : null;
   const cols = columnsFor(rows, { includeWeight });
   const stats = computeStats(rows, profile);
   stats.workouts = ws;
   const year = fullYearOf(range.requested);
   const base = year ? `saglik-panel-${year}` : `saglik-panel-${range.from}_${range.to}`;
 
+  if (format === 'sets') {
+    if (!wList.length) return { empty: true, reason: 'workouts', range, format, stats };
+    return {
+      empty: false, format, range, rows, stats,
+      text: toSetsCSV(wList), filename: `${base.replace('saglik-panel', 'saglik-panel-antrenman')}.csv`,
+      mime: 'text/csv', bom: true,
+    };
+  }
   if (format === 'csv') {
     return {
       empty: false, format, range, rows, stats,
@@ -749,7 +930,7 @@ export function buildExport(data = {}, opts = {}) {
   const title = year ? `${year} yılı` : `${longDate(range.from)} – ${longDate(range.to)}`;
   return {
     empty: false, format: 'md', range, rows, stats,
-    text: toMarkdown({ rows, cols, stats, profile, range, includeWeight, now, todayKey, title, ws }),
+    text: toMarkdown({ rows, cols, stats, profile, range, includeWeight, now, todayKey, title, ws, wList, workouts }),
     filename: `${base}.md`, mime: 'text/markdown', bom: false,
   };
 }

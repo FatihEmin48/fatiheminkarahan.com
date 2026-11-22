@@ -98,6 +98,18 @@ export function renderWorkout() {
     </section>`);
   }
 
+  // Bulutta antrenman tabloları yoksa kayıtlar yalnız bu cihazda kalır: görünür şekilde söyle
+  if (C.cloudOn() && st.cloud?.workoutsMissing) {
+    const waiting = Object.keys(st.dirty.workouts || {}).length;
+    parts.push(`<section class="card wk-cloud-warn">
+      <div class="card-head"><h2>Eşitleme bekliyor</h2><span class="pill warn">yalnız bu cihazda</span></div>
+      <p class="muted small">Antrenmanların şimdilik yalnız bu cihazda${waiting ? ` (${waiting} kayıt gönderilmeyi bekliyor)` : ''}:
+        sunucuda antrenman tabloları kurulu değil. Kurulunca kendiliğinden gönderilir ve hesabınla açtığın
+        diğer cihazlarda da görünür.</p>
+      <button class="btn-ghost wide" data-act="cloud-setup">Kurulum adımları</button>
+    </section>`);
+  }
+
   // bu hafta
   const wk = W.weekSummary(st.workouts);
   const streak = W.weekStreak(st.workouts);
@@ -254,6 +266,7 @@ function onTabClick(e) {
     case 'history': historySheet(); break;
     case 'exercise': openExercise(id); break;
     case 'credits': creditsSheet(); break;
+    case 'cloud-setup': cloudSetupSheet(); break;
     default:
   }
 }
@@ -1138,6 +1151,66 @@ function historySheet() {
 }
 
 /* ================= kaynaklar ================= */
+
+/* ================= bulut kurulumu (proje sahibi için) ================= */
+
+let schemaSql = null;   // data/schema-workout.sql (iOS panoya yazmayı yalnız dokunuş anında izin verir: önceden yükle)
+
+export function cloudSetupSheet() {
+  const box = C.el('div', 'cloud-setup');
+  const ref = C.cloudRef?.();
+  box.innerHTML = `<p class="muted small">Antrenmanların hesabınla eşitlenmesi için Supabase projesinde iki tablo
+      (<code>sp_workouts</code>, <code>sp_routines</code>) bir kez kurulmalı. Bu adımı yalnız <b>Supabase projesinin
+      sahibi</b> yapabilir; kurulunca herkesin antrenmanları kendiliğinden eşitlenir.</p>
+    <ol class="setup-steps">
+      <li><b>SQL’i kopyala</b> (aşağıdaki düğme).</li>
+      <li>Supabase → <b>SQL Editor</b> → <b>New query</b>’yi aç${ref ? ' (aşağıdaki bağlantı doğrudan açar)' : ''}.</li>
+      <li>Yapıştır ve <b>Run</b>’a bas. Tekrar çalıştırmak güvenlidir.</li>
+      <li>Buraya dönüp <b>Şimdi eşitle</b>’ye bas: bu cihazda bekleyen antrenmanlar gönderilir.</li>
+    </ol>`;
+  const actions = C.el('div', 'share-actions');
+  const copy = C.el('button', 'btn-primary', 'SQL’i kopyala');
+  copy.type = 'button';
+  actions.appendChild(copy);
+  if (ref) {
+    const a = C.el('a', 'btn-ghost', 'SQL Editor’ü aç');
+    a.href = `https://supabase.com/dashboard/project/${ref}/sql/new`;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    actions.appendChild(a);
+  }
+  const sync = C.el('button', 'btn-ghost', 'Şimdi eşitle');
+  sync.type = 'button';
+  actions.appendChild(sync);
+  box.appendChild(actions);
+
+  const det = C.el('details', 'export-preview');
+  det.appendChild(C.el('summary', '', 'SQL’i göster (elle seçip kopyalamak için)'));
+  const ta = C.el('textarea', 'sql-box');
+  ta.readOnly = true;
+  ta.rows = 10;
+  ta.value = schemaSql || 'Yükleniyor…';
+  det.appendChild(ta);
+  box.appendChild(det);
+
+  const load = schemaSql ? Promise.resolve(schemaSql)
+    : fetch('data/schema-workout.sql').then((r) => (r.ok ? r.text() : Promise.reject(new Error(`SQL yüklenemedi (${r.status})`))))
+      .then((t) => { schemaSql = t; ta.value = t; return t; });
+  load.catch((e) => { ta.value = e.message; });
+
+  copy.onclick = () => {
+    if (schemaSql) C.copyText(schemaSql, 'SQL kopyalandı — Supabase SQL Editor’e yapıştır');
+    else load.then((t) => C.copyText(t, 'SQL kopyalandı')).catch((e) => C.toast(e.message, { error: true }));
+  };
+  sync.onclick = async () => {
+    sync.disabled = true;
+    await C.syncNow?.({ quiet: true });
+    sync.disabled = false;
+    if (S().state.cloud.workoutsMissing) C.toast('Tablolar hâlâ görünmüyor. SQL’i çalıştırdın mı?', { error: true });
+    else { C.toast('Eşitlendi — antrenmanların artık hesabında'); C.closeSheet(); }
+  };
+  C.openSheet('Antrenman eşitlemesini kur', box);
+}
 
 export function creditsSheet() {
   const box = C.el('div');

@@ -2,7 +2,7 @@
 
 // Sürümü değiştirmek eski kabuğu attırır; yapay zekâ zinciri gibi js değişikliklerinden
 // sonra bunu artırmazsan telefonlar eski dosyayı önbellekten okumaya devam eder.
-const CACHE = 'saglik-panel-v1.3.0';
+const CACHE = 'saglik-panel-v1.4.0';
 const SHELL = [
   './', 'index.html', 'style.css', 'manifest.webmanifest', 'icon.svg',
   'js/app.js', 'js/charts.js', 'js/ocr-web.js', 'js/ai.js', 'js/social.js', 'js/sharecard.js',

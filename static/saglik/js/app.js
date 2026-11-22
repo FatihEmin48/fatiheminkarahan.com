@@ -543,9 +543,9 @@ function exportSheet(initial = null) {
   const box = el('div', 'export-sheet');
   box.appendChild(el('p', 'muted small',
     'Seçtiğin dönemin <b>her günü</b> tek dosyada: günlük tablo, uygulamanın hesapladığı özet '
-    + '(hedef tutma, aylık ve haftalık döküm, haftanın günleri, kilo, antrenmanlar) ve sonda kısa bir '
-    + 'değerlendirme isteği. Dosyayı Claude’a ya da başka bir yapay zekâya gönderip '
-    + '<b>“değerlendir”</b> demen yeterli.'));
+    + '(hedef tutma, aylık ve haftalık döküm, haftanın günleri, kilo, antrenmanlar), her antrenmanın '
+    + '<b>hareket hareket, set set</b> dökümü ve sonda kısa bir değerlendirme isteği. Dosyayı Claude’a '
+    + 'ya da başka bir yapay zekâya gönderip <b>“değerlendir”</b> demen yeterli.'));
 
   /* dönem */
   box.appendChild(el('h3', 'sheet-label', 'Dönem'));
@@ -602,7 +602,12 @@ function exportSheet(initial = null) {
   /* biçim */
   box.appendChild(el('h3', 'sheet-label', 'Biçim'));
   const seg = el('div', 'seg');
-  for (const [id, label] of [['md', 'Yapay zekâ için · .md'], ['csv', 'Excel için · .csv']]) {
+  // Antrenman setleri biçimi yalnız antrenman kaydı varsa görünür
+  const hasWorkouts = Object.values(S.state.workouts || {}).some((w) => w && !w.deleted && w.ended_at);
+  if (exportOpts.format === 'sets' && !hasWorkouts) exportOpts.format = 'md';
+  const formats = [['md', 'Yapay zekâ için · .md'], ['csv', 'Excel için · .csv']];
+  if (hasWorkouts) formats.push(['sets', 'Antrenman setleri · .csv']);
+  for (const [id, label] of formats) {
     const b = el('button', id === exportOpts.format ? 'on' : null, label);
     b.type = 'button';
     b.dataset.format = id;
@@ -666,25 +671,31 @@ function exportSheet(initial = null) {
   box.appendChild(el('p', 'about',
     '<b>Paylaş</b> ile dosyayı doğrudan Claude uygulamasına ya da Dosyalar’a gönderebilir, '
     + '<b>Kopyala</b> ile sohbete yapıştırabilirsin. Dosyada kullanıcı adın, e-postan ve '
-    + 'hesap anahtarların yer almaz. Yalnız tamamlanmış günler alınır; bugün dahil edilmez.'));
+    + 'hesap anahtarların yer almaz. Yalnız tamamlanmış günler alınır; bugünden yalnız bitirdiğin '
+    + 'antrenmanlar eklenir.'));
 
   function refresh() {
     const { from, to } = pick();
     current = X.buildExport(S.state, {
       from, to, format: exportOpts.format, includeWeight: exportOpts.includeWeight,
     });
-    fmtNote.innerHTML = exportOpts.format === 'md'
-      ? 'Özet + günlük tablo + değerlendirme isteği; yapay zekânın doğru okuması için sütun '
-        + 'anlamları ve birimler dosyada yazılı.'
-      : 'Yalnız günlük tablo. Türkçe Excel’de çift tıklayınca sütunlara ayrılmış açılır '
-        + '(; ayırıcı, ondalık virgül).';
+    fmtNote.innerHTML = {
+      md: 'Özet + günlük tablo + antrenman günlüğü (gün gün, set set) + değerlendirme isteği; yapay '
+        + 'zekânın doğru okuması için sütun anlamları ve birimler dosyada yazılı.',
+      csv: 'Günlük tablo; antrenman yaptığın günlerde hareketler ve setler de bir sütunda. Türkçe '
+        + 'Excel’de çift tıklayınca sütunlara ayrılmış açılır (; ayırıcı, ondalık virgül).',
+      sets: 'Her set bir satır: tarih, antrenman, hareket, set türü, kg, tekrar, süre, hacim, tahmini '
+        + '1TM. Excel’de süzmek ve özet tablo (pivot) için.',
+    }[exportOpts.format] || '';
 
     info.innerHTML = '';
     for (const b of buttons) b.disabled = !!current.empty;
     if (current.empty) {
       info.hidden = true;
-      warn.innerHTML = 'Bu dönemde <b>tamamlanmış bir günün kaydı yok</b> (bugün henüz bitmediği '
-        + 'için sayılmaz). Başka bir dönem seç.';
+      warn.innerHTML = current.reason === 'workouts'
+        ? 'Bu dönemde <b>bitmiş antrenman yok</b>. Başka bir dönem seç.'
+        : 'Bu dönemde <b>tamamlanmış bir günün kaydı yok</b> (bugün henüz bitmediği '
+          + 'için sayılmaz). Başka bir dönem seç.';
       pre.textContent = '';
       return;
     }
@@ -696,6 +707,9 @@ function exportSheet(initial = null) {
       ['Gün', `${U.nf(r.dayCount)} · ${U.nf(st.logged)} kayıtlı (%${Math.round((st.logged / r.dayCount) * 100)})`],
     ];
     if (exportOpts.includeWeight) rows.push(['Kilo ölçümü', U.nf(st.weight ? st.weight.n : 0)]);
+    if (st.workouts?.sessions) {
+      rows.push(['Antrenman', `${U.nf(st.workouts.sessions)} · ${U.nf(st.workouts.sets)} set`]);
+    }
     rows.push(['Dosya', `${current.filename} · ${size < 1024 ? `${size} B` : `${U.nf(size / 1024, 0)} KB`}`]);
     for (const [k, v] of rows) {
       info.appendChild(el('dt', '', k));
@@ -705,7 +719,11 @@ function exportSheet(initial = null) {
 
     const notes = [];
     if (r.startCut) notes.push(`İlk kaydın ${esc(X.longDate(r.from))}; dönemin öncesi boş olduğu için alınmadı.`);
-    if (r.todayCut) notes.push('Bugün henüz bitmediği için dahil edilmedi.');
+    if (r.todayCut) {
+      notes.push(st.workouts?.todayIncluded
+        ? 'Bugün henüz bitmediği için günlük tabloya girmedi; bugün bitirdiğin antrenman dosyada var.'
+        : 'Bugün henüz bitmediği için dahil edilmedi.');
+    }
     warn.innerHTML = notes.join(' ');
     if (det.open) pre.textContent = current.text;
   }
@@ -2717,7 +2735,9 @@ async function boot() {
   wire();
   Wk.initWorkout({
     $, el, esc, toast, openSheet, closeSheet, busy, unbusy, S, U, api, render,
-    cloudOn, isAndroidApp, view: () => view,
+    cloudOn, isAndroidApp, view: () => view, copyText, syncNow,
+    // Supabase panelindeki SQL Editor bağlantısı için proje kimliği (yalnız *.supabase.co adreslerinde)
+    cloudRef: () => (/^https:\/\/([a-z0-9]+)\.supabase\.co$/i.exec(CONFIG.url || '') || [])[1] || null,
   });
 
   if (isCloudEnabled() && api.isLoggedIn()) {

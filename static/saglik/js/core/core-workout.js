@@ -457,6 +457,39 @@ export const HAZIR_PROGRAMLAR = [
     ],
   },
   {
+    id: 'hz-ev-kardiyo', name: 'Evde · Kardiyo devresi',
+    note: 'Ekipman gerektirmez; nabzı yükselten kısa ve yoğun bir devre (~25 dk). Yerinde yürüyüşle ısın. '
+      + 'Zorlanırsan Burpee yerine Şınavsız Burpee, Zıplamalı Squat yerine normal squat, Şınav yerine Dizüstü Şınav yap. '
+      + 'Alt kattakileri düşünüyorsan Jumping Jack yerine Adımlı Jumping Jack.',
+    items: [
+      { ex: 1584, sets: 1, reps: '3 dk', rest: 30 },
+      { ex: 1314, sets: 3, reps: '40 sn', rest: 20 },
+      { ex: 614, sets: 3, reps: '12', rest: 40 },
+      { ex: 1551, sets: 3, reps: '8–12', rest: 40 },
+      { ex: 996, sets: 3, reps: '30 sn', rest: 30 },
+      { ex: 986, sets: 3, reps: '10 / bacak', rest: 40 },
+      { ex: 997, sets: 3, reps: '8–10', rest: 60 },
+      { ex: 1489, sets: 3, reps: '30 sn', rest: 30 },
+      { ex: 1412, sets: 3, reps: '20', rest: 30 },
+    ],
+  },
+  {
+    id: 'hz-ev-bacak', name: 'Evde · Bacak, kalça & karın',
+    note: 'Ekipman gerektirmez; duvar ve bir paspas yeter. Bacak, kalça ve karın kaslarına odaklanır. '
+      + 'Tüm vücut ekipmansız programıyla dönüşümlü yapabilirsin (ör. Pzt tüm vücut, Çar bacak & karın, Cum tüm vücut).',
+    items: [
+      { ex: 1208, sets: 3, reps: '15–20', rest: 60 },
+      { ex: 1366, sets: 3, reps: '10–12 / bacak', rest: 60 },
+      { ex: 718, sets: 3, reps: '30–60 sn', rest: 60 },
+      { ex: 1740, sets: 3, reps: '10–12 / bacak', rest: 45 },
+      { ex: 1823, sets: 2, reps: '15 / taraf', rest: 30 },
+      { ex: 1243, sets: 3, reps: '15–20', rest: 30 },
+      { ex: 636, sets: 3, reps: '12', rest: 45 },
+      { ex: 1772, sets: 3, reps: '12–15', rest: 30 },
+      { ex: 297, sets: 3, reps: '20–30 sn', rest: 30 },
+    ],
+  },
+  {
     id: 'hz-dambil', name: 'Dambılla tüm vücut',
     note: 'Bir çift dambıl ve sehpa yeterli. 10–12 tekrarı rahat yapınca ağırlığı artır.',
     items: [
