@@ -978,26 +978,6 @@ p.small { font-size: .86rem; line-height: 1.55; }
 
 /* sekme */
 .wk-live { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
-.wk-cloud-warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
-.wk-cloud-warn p { margin-bottom: 10px; }
-.cloud-setup .setup-steps { margin: 10px 0 14px; padding-left: 20px; font-size: .88rem; line-height: 1.55; }
-.cloud-setup .setup-steps li { margin-bottom: 4px; }
-.cloud-setup .share-actions a { text-align: center; text-decoration: none; }
-.cloud-setup code { font-size: .8em; }
-.sql-box {
-  display: block;
-  width: 100%;
-  margin: 0;
-  padding: 10px 14px;
-  border: 0;
-  border-top: 1px solid var(--line);
-  background: transparent;
-  color: var(--text-dim);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: .7rem;
-  line-height: 1.5;
-  resize: vertical;
-}
 .wk-stats { margin-bottom: 12px; }
 .wk-groups { display: flex; flex-direction: column; gap: 7px; }
 .wk-g {

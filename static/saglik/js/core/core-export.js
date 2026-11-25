@@ -458,7 +458,7 @@ function bucketTable(list, { kind, includeWeight }) {
 
 function dailyCsv(rows, cols) {
   const head = ['tarih', 'gun', ...cols.act.map((m) => m.col), ...cols.wgt.map((m) => m.col)];
-  if (cols.wk) head.push('antrenman', 'antrenman_dk', 'set', 'hacim_kg');
+  if (cols.wk) head.push('antrenman', 'antrenman_dk', 'set', 'hacim_kg', 'hareketler');
   if (cols.source) head.push('kaynak');
   if (cols.note) head.push('not');
   const lines = [head.join(',')];
@@ -469,7 +469,10 @@ function dailyCsv(rows, cols) {
       ...cols.act.map((m) => fx(r[m.key], m.dp)),
       ...cols.wgt.map((m) => fx(r[m.key], m.dp)),
     ];
-    if (cols.wk) cells.push((r.w_names || '').replace(/`/g, "'"), fx(r.w_min), fx(r.w_sets), fx(r.w_vol));
+    if (cols.wk) {
+      cells.push((r.w_names || '').replace(/`/g, "'"), fx(r.w_min), fx(r.w_sets), fx(r.w_vol),
+        (r.w_moves || '').replace(/`/g, "'"));
+    }
     if (cols.source) cells.push(r.source || '');
     // ters tırnak kod bloğunu kapatabilir
     if (cols.note) cells.push((r.note || '').replace(/`/g, "'"));
@@ -528,6 +531,26 @@ function setsText(item, dec = '.') {
     return extra ? `${p.txt} (${extra})` : p.txt;
   }).join(' · ');
 }
+
+/**
+ * Günlük tablo için kısa yazım: hareketin adı ve çalışma seti sayısı, kardiyoda süre ve mesafe —
+ * "Bench Press 3 set; Plank 2 set; Koşu bandı 25 dk 4.1 km". Set set dökümü Antrenman günlüğünde.
+ */
+function moveText(it) {
+  const done = (it?.sets || []).filter((s) => s.done);
+  if (!done.length) return '';
+  const name = clean(it.name) || 'Hareket';
+  if ((it.measure || 'agirlik') === 'kardiyo') {
+    const sec = done.reduce((a, s) => a + (num(s.sec) || 0), 0);
+    const km = done.reduce((a, s) => a + (num(s.km) || 0), 0);
+    const parts = [sec ? `${fx(sec / 60)} dk` : '', km ? `${fx(km, 2)} km` : ''].filter(Boolean);
+    return parts.length ? `${name} ${parts.join(' ')}` : name;
+  }
+  const n = done.filter((s) => s.type !== 'w').length;
+  return n ? `${name} ${n} set` : name;
+}
+
+const dayMovesText = (list) => list.flatMap((w) => (w.items || []).map(moveText)).filter(Boolean).join('; ');
 
 /** Bir günün antrenman(lar)ı tek hücrede: "Squat: 60 kg × 8 (3 set) | Plank: 45 sn (3 set)". */
 function dayExercisesText(list, dec) {
@@ -797,6 +820,8 @@ function toMarkdown({
   if (cols.wk) {
     add('- `antrenman`: o gün kaydettiğim antrenmanın adı (Antrenman sekmesi)');
     add('- `antrenman_dk`: antrenman süresi, dk · `set`: çalışma seti (ısınma hariç) · `hacim_kg`: kg × tekrar toplamı');
+    add('- `hareketler`: o gün yaptığım hareketler, çalışma seti sayısıyla; kardiyoda süre ve mesafeyle '
+      + '(set set dökümü **Antrenman günlüğü** bölümünde)');
   }
   if (cols.source) {
     const seen = [...new Set(rows.map((x) => x.source).filter(Boolean))];
@@ -906,7 +931,11 @@ export function buildExport(data = {}, opts = {}) {
   const rows = buildRows(days, weights, range.from, range.to, { includeWeight, byDay: ws.byDay });
   const listByDay = {};
   for (const w of wList) (listByDay[w.day] || (listByDay[w.day] = [])).push(w);
-  for (const r of rows) r.w_ex = listByDay[r.day] ? dayExercisesText(listByDay[r.day], ',') || null : null;
+  for (const r of rows) {
+    const list = listByDay[r.day];
+    r.w_ex = list ? dayExercisesText(list, ',') || null : null;   // Excel: hareketler ve setleri
+    r.w_moves = list ? dayMovesText(list) || null : null;       // .md günlük tablo: kısa yazım
+  }
   const cols = columnsFor(rows, { includeWeight });
   const stats = computeStats(rows, profile);
   stats.workouts = ws;

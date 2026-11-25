@@ -196,14 +196,18 @@ async function doAuth(e) {
 /* ================= eşitleme ================= */
 
 let syncing = false;
-async function syncNow({ quiet = false } = {}) {
+/**
+ * background: ekran açıkken düzenli yapılan sessiz eşitleme — dönen simge yok, ekran yalnız
+ * başka bir cihazdan yeni bir şey geldiyse yeniden çizilir.
+ */
+async function syncNow({ quiet = false, background = false } = {}) {
   if (!cloudOn() || syncing) return;
   syncing = true;
-  $('btn-sync').classList.add('spinning');
+  if (!background) $('btn-sync').classList.add('spinning');
   try {
-    await S.sync(api);
-    await loadUploads();
-    render();
+    const r = await S.sync(api);
+    if (!background) await loadUploads();
+    if (!background || r?.changed) render();
     if (!quiet) toast('Eşitlendi');
   } catch (err) {
     if (!quiet) toast(err.message || 'Eşitleme başarısız', { error: true });
@@ -212,6 +216,9 @@ async function syncNow({ quiet = false } = {}) {
     $('btn-sync').classList.remove('spinning');
   }
 }
+
+/** Ekran açık durdukça başka cihazdaki değişiklikler (ör. telefonda biten antrenman) kendiliğinden gelsin. */
+const BACKGROUND_SYNC_MS = 60 * 1000;
 
 async function loadUploads() {
   if (!cloudOn()) { uploads = []; return; }
@@ -2518,11 +2525,9 @@ function settingsSheet() {
   cred.onclick = () => Wk.creditsSheet();
   bW.appendChild(cred);
   gW.appendChild(bW);
-  gW.appendChild(el('p', 'about', S.state.cloud.workoutsMissing
-    ? 'Antrenmanlar şimdilik <b>yalnız bu cihazda</b>: bulutta antrenman tablosu kurulu değil '
-      + '(Supabase → SQL Editor → <b>db/schema-workout.sql</b>). Kurulunca kendiliğinden eşitlenir.'
-    : cloudOn() ? 'Antrenmanların ve programların hesabınla birlikte eşitlenir.'
-      : 'Antrenmanlar bu cihazda saklanır.'));
+  gW.appendChild(el('p', 'about', cloudOn()
+    ? 'Antrenmanların ve programların, adım verin gibi hesabında saklanır; hesabınla girdiğin her cihazda görünür.'
+    : 'Antrenmanlar bu cihazda saklanır.'));
   box.appendChild(gW);
 
   /* görünüm */
@@ -2708,6 +2713,9 @@ function wire() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') syncNow({ quiet: true });
   });
+  setInterval(() => {
+    if (document.visibilityState === 'visible' && api.isLoggedIn()) syncNow({ quiet: true, background: true });
+  }, BACKGROUND_SYNC_MS);
   window.addEventListener('beforeunload', () => S.save({ now: true }));
 
   S.onChange((reason) => {
@@ -2736,8 +2744,6 @@ async function boot() {
   Wk.initWorkout({
     $, el, esc, toast, openSheet, closeSheet, busy, unbusy, S, U, api, render,
     cloudOn, isAndroidApp, view: () => view, copyText, syncNow,
-    // Supabase panelindeki SQL Editor bağlantısı için proje kimliği (yalnız *.supabase.co adreslerinde)
-    cloudRef: () => (/^https:\/\/([a-z0-9]+)\.supabase\.co$/i.exec(CONFIG.url || '') || [])[1] || null,
   });
 
   if (isCloudEnabled() && api.isLoggedIn()) {

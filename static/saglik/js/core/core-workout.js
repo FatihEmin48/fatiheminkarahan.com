@@ -3,7 +3,7 @@
    haftalık ve dönemlik özetler, hazır programlar.
    Saf fonksiyonlar; DOM ve ağ yok. Web, Android, dışa aktarma ve testler aynı dosyayı kullanır.
 
-   Veri modeli (yerelde state.workouts[id], bulutta sp_workouts.data):
+   Veri modeli (yerelde state.workouts[id]; bulutta o günün sp_daily_activity.workouts listesinde, bkz. core-store.js):
    workout = { id, name, started_at, ended_at, day, routine_id, note, items: [item], updated_at }
    item    = { ex, name, measure, muscles, muscles2, cat, rest, target, note, sets: [set] }
    set     = { kg, reps, sec, km, done, type }      type: 'n' normal · 'w' ısınma · 'd' drop · 'f' tükeniş
@@ -93,7 +93,7 @@ export const SET_TIP = { n: 'Normal', w: 'Isınma', d: 'Drop set', f: 'Tükeniş
 
 const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 
-/** RFC 4122 v4 kimlik (sp_workouts.id uuid). */
+/** RFC 4122 v4 kimlik: antrenman ve program her cihazda aynı kimlikle eşitlenir. */
 export function uuid() {
   const c = globalThis.crypto;
   if (c?.randomUUID) return c.randomUUID();

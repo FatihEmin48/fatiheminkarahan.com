@@ -35,7 +35,8 @@ function fresh() {
     exFav: [],       // favori hareket kimlikleri
     wprefs: { restAuto: true, sound: true },
     dirty: { days: {}, weights: {}, profile: false, workouts: {}, routines: {} },
-    cloud: { workoutsMissing: false },   // sunucuda antrenman tablosu yoksa (schema-workout.sql)
+    // antrenman eşitlemesi: hangi hesapla, sunucudaki değişiklikler en son nereye kadar okundu
+    cloud: { uid: null, wSince: null },
     lastSync: null,
     lastPromptDay: null,   // günlük soru en son hangi gün gösterildi
   };
@@ -80,7 +81,8 @@ function migrate(raw) {
       workouts: raw.dirty?.workouts || {},
       routines: raw.dirty?.routines || {},
     },
-    cloud: { ...base.cloud, ...(raw.cloud || {}) },
+    // eski sürümün "workoutsMissing" işareti burada düşer
+    cloud: { uid: raw.cloud?.uid || null, wSince: raw.cloud?.wSince || null },
   };
   s.schema = SCHEMA;
   for (const k of Object.keys(s.days)) if (!isValidKey(k)) delete s.days[k];
@@ -144,7 +146,8 @@ export function setDay(key, patch, { source = 'manual', dirty = true } = {}) {
 export function clearDayField(key, field) {
   const rec = state.days[key];
   if (!rec) return;
-  rec[field] = null;
+  // yeni nesne: eşitleme, gönderim sürerken değişen kaydı nesne kimliğinden anlar
+  state.days[key] = { ...rec, [field]: null, updated_at: new Date().toISOString() };
   state.dirty.days[key] = true;
   commit('day:' + key);
 }
@@ -262,11 +265,12 @@ export function saveWorkout(w, { dirty = true } = {}) {
   return next;
 }
 
-/** Siler: bulutta da silinsin diye eşitlenene kadar işaretli kalır. */
+/** Siler: bulutta da silinsin diye eşitlenene kadar işaretli kalır. Silme izi o günün satırına
+    yazılır (gün bu yüzden korunur); diğer cihazlar silindiğini oradan öğrenir. */
 export function deleteWorkout(id) {
   const w = state.workouts[id];
   if (!w) return;
-  state.workouts[id] = { id, deleted: true, updated_at: stamp() };
+  state.workouts[id] = { id, day: workoutDay(w), deleted: true, updated_at: stamp() };
   state.dirty.workouts[id] = true;
   commit('workout');
 }
@@ -326,101 +330,172 @@ export const dirtyCount = () =>
   + (state.dirty.profile ? 1 : 0);
 
 /* ---------------- antrenman eşitlemesi ----------------
-   sp_workouts / sp_routines (db/schema-workout.sql). Tablo kurulmamışsa eşitleme hata vermez:
-   kayıtlar yerelde kirli kalır ve tablo kurulunca kendiliğinden gönderilir. */
+   Ayrı tablo yok, sunucuda hiçbir kurulum gerekmez: antrenmanlar adımların durduğu satırda,
+   sp_daily_activity.workouts (jsonb) sütununda durur — gün başına o gün yapılan antrenmanların
+   listesi. Antrenman böylece adım gibi hesabın açık olduğu her cihaza gelir. Kendi programların
+   ayrı bir satırda (PROGRAM_DAY) aynı biçimde durur.
 
-const isMissingTable = (e) => e?.status === 404
-  || /PGRST205|42P01|schema cache|does not exist/i.test(`${e?.body?.code || ''} ${e?.body?.message || ''} ${e?.message || ''}`);
+   Liste öğesi antrenmanın kendisidir {id, name, started_at, ended_at, day, routine_id, note,
+   items, updated_at}; silinen {id, day, deleted: true, updated_at} olarak kalır (silme izi), yoksa
+   eşitlenmemiş eski bir cihaz silineni geri getirirdi.
 
-// Toplu upsert'te PostgREST sütunları ilk satırdan alır: her satır AYNI anahtarlarla gönderilmeli.
-const workoutRow = (uid, w) => (w.deleted
-  ? {
-    id: w.id, user_id: uid, day: null, started_at: null, ended_at: null, name: null, data: null,
-    deleted: true, updated_at: w.updated_at,
-  }
-  : {
-    id: w.id,
-    user_id: uid,
-    day: w.day,
-    started_at: w.started_at,
-    ended_at: w.ended_at,
-    name: w.name || null,
-    data: { items: w.items || [], note: w.note || '', routine_id: w.routine_id || null },
-    deleted: false,
-    updated_at: w.updated_at,
-  });
+   Gönderirken önce o günlerin sunucudaki listesi okunur, kimlik başına en yeni sürüm alınarak
+   birleştirilir: iki cihaz aynı güne antrenman eklese de biri ötekini silmez. Satıra yalnız
+   user_id, day, workouts yazılır; PostgREST yalnız gönderilen sütunları günceller, adım ve diğer
+   ölçüler olduğu gibi kalır (kısayolun sp_ingest_activity'si de workouts'a dokunmaz).
+   Çekerken yalnız son okumadan beri değişen satırlar gelir (updated_at). */
 
-const workoutFromRow = (r) => ({
-  id: r.id,
-  name: r.name || 'Antrenman',
-  started_at: r.started_at,
-  ended_at: r.ended_at,
-  day: r.day,
-  routine_id: r.data?.routine_id || null,
-  note: r.data?.note || '',
-  items: Array.isArray(r.data?.items) ? r.data.items : [],
-  updated_at: r.updated_at,
-});
+/** Kendi programlarının durduğu satırın günü: gerçek bir gün değil, analize ve dışa aktarmaya girmez. */
+export const PROGRAM_DAY = '2000-01-01';
 
-const routineRow = (uid, r) => (r.deleted
-  ? { id: r.id, user_id: uid, name: null, data: null, deleted: true, updated_at: r.updated_at }
-  : { id: r.id, user_id: uid, name: r.name, data: { items: r.items || [], note: r.note || '' }, deleted: false, updated_at: r.updated_at });
+const CHUNK = 50;                        // bir istekte en çok kaç gün
+const PAGE = 500;                        // çekerken sayfa boyu
+// Okuma imleci son görülen yazmanın biraz gerisinden başlar: o sırada süren bir işlem (Supabase bir
+// isteği en çok birkaç saniyede keser) daha erken bir updated_at ile sonradan görünür olsa da kaçmaz.
+const SINCE_MARGIN_MS = 60 * 1000;
+const EMPTY_LIST = encodeURIComponent('[]');
 
-const routineFromRow = (r) => ({
-  id: r.id, name: r.name, items: Array.isArray(r.data?.items) ? r.data.items : [], note: r.data?.note || '', updated_at: r.updated_at,
-});
+const entryTime = (e) => Date.parse(e?.updated_at || '') || 0;
 
-async function pushTable(api, uid, kind) {
-  const table = kind === 'workouts' ? 'sp_workouts' : 'sp_routines';
-  const toRow = kind === 'workouts' ? workoutRow : routineRow;
-  const keys = Object.keys(state.dirty[kind]);
-  if (!keys.length) return 0;
-  const rows = keys.map((k) => state[kind][k]).filter(Boolean).map((x) => toRow(uid, x));
-  if (rows.length) await api.upsert(table, rows, { onConflict: 'id' });
-  for (const k of keys) {
-    delete state.dirty[kind][k];
-    if (state[kind][k]?.deleted) delete state[kind][k];   // silindiği bulutta da işlendi
-  }
-  return rows.length;
+/** Antrenmanın günü; eski kayıtta gün yoksa başlangıç saatinden. */
+function workoutDay(w) {
+  if (isValidKey(w?.day)) return w.day;
+  const t = Date.parse(w?.started_at || '');
+  return Number.isFinite(t) ? dayKey(new Date(t)) : null;
 }
 
-async function pushWorkouts(api, uid) {
-  try {
-    const n = await pushTable(api, uid, 'workouts') + await pushTable(api, uid, 'routines');
-    state.cloud.workoutsMissing = false;
-    return n;
-  } catch (e) {
-    if (isMissingTable(e)) { state.cloud.workoutsMissing = true; return 0; }
-    throw e;
+/**
+ * İki listeyi birleştirir: kimlik başına en yeni sürüm kalır (silme izleri dahil), eşitlikte ikinci
+ * liste kazanır. Kimliği olmayan öğelere (başka bir biçim) dokunulmaz.
+ */
+export function mergeEntries(base = [], changes = []) {
+  const keep = [];
+  const by = new Map();
+  for (const e of [...(Array.isArray(base) ? base : []), ...(Array.isArray(changes) ? changes : [])]) {
+    if (!e || typeof e !== 'object') continue;
+    if (!e.id) { keep.push(e); continue; }
+    const cur = by.get(e.id);
+    if (!cur || entryTime(e) >= entryTime(cur)) by.set(e.id, e);
   }
+  return [...keep, ...by.values()];
 }
 
-async function pullWorkouts(api) {
-  try {
-    let n = 0;
-    const ws = await api.select('sp_workouts', 'select=*&order=started_at.desc&limit=3000');
-    for (const r of ws || []) {
-      if (state.dirty.workouts[r.id]) continue;
-      if (r.deleted) delete state.workouts[r.id];
-      else state.workouts[r.id] = workoutFromRow(r);
-      n++;
-    }
-    const rs = await api.select('sp_routines', 'select=*&limit=500');
-    for (const r of rs || []) {
-      if (state.dirty.routines[r.id]) continue;
-      if (r.deleted) delete state.routines[r.id];
-      else state.routines[r.id] = routineFromRow(r);
-      n++;
-    }
-    state.cloud.workoutsMissing = false;
-    return n;
-  } catch (e) {
-    if (isMissingTable(e)) { state.cloud.workoutsMissing = true; return 0; }
-    throw e;
+/** Sunucudaki öğeyi yerele işler. Gönderilmeyi bekleyen yerel sürüme dokunmaz (o gönderirken birleşir). */
+function applyRemote(kind, e, day) {
+  if (!e || typeof e !== 'object' || !e.id) return false;
+  if (state.dirty[kind][e.id]) return false;
+  const cur = state[kind][e.id];
+  if (cur && entryTime(cur) > entryTime(e)) return false;
+  if (e.deleted) {
+    if (!cur) return false;
+    delete state[kind][e.id];
+    return true;
   }
+  const next = kind === 'workouts' ? { ...e, day: isValidKey(e.day) ? e.day : day } : { ...e };
+  if (cur && JSON.stringify(cur) === JSON.stringify(next)) return false;
+  state[kind][e.id] = next;
+  return true;
+}
+
+/** Bekleyen antrenman ve programları ait oldukları satırlara birleştirerek yazar. */
+async function pushEntries(api, uid) {
+  const groups = new Map();   // gün → { kind, items: [gönderilen yerel sürüm] }
+  const add = (day, kind, entry) => {
+    if (!groups.has(day)) groups.set(day, { kind, items: [] });
+    groups.get(day).items.push(entry);
+  };
+  for (const id of Object.keys(state.dirty.workouts)) {
+    const w = state.workouts[id];
+    const day = w ? workoutDay(w) : null;
+    if (!w || !day || day <= PROGRAM_DAY) {
+      // günü bilinmeyen silme izi: eski sürümde buluta hiç gitmemiş bir kaydındır, gönderilecek bir şey yok
+      delete state.dirty.workouts[id];
+      if (w?.deleted) delete state.workouts[id];
+      continue;
+    }
+    add(day, 'workouts', w);
+  }
+  for (const id of Object.keys(state.dirty.routines)) {
+    const r = state.routines[id];
+    if (!r) { delete state.dirty.routines[id]; continue; }
+    add(PROGRAM_DAY, 'routines', r);
+  }
+  if (!groups.size) return { n: 0, changed: false };
+
+  const days = [...groups.keys()];
+  const remote = new Map();
+  for (let i = 0; i < days.length; i += CHUNK) {
+    const part = days.slice(i, i + CHUNK);
+    const rows = await api.select('sp_daily_activity', `select=day,workouts&day=in.(${part.join(',')})`);
+    for (const r of rows || []) remote.set(r.day, Array.isArray(r.workouts) ? r.workouts : []);
+  }
+  const out = days.map((day) => ({
+    user_id: uid, day, workouts: mergeEntries(remote.get(day), groups.get(day).items),
+  }));
+  for (let i = 0; i < out.length; i += CHUNK) {
+    await api.upsert('sp_daily_activity', out.slice(i, i + CHUNK), { onConflict: 'user_id,day' });
+  }
+
+  let n = 0;
+  for (const g of groups.values()) {
+    for (const sent of g.items) {
+      if (state[g.kind][sent.id] !== sent) continue;   // gönderim sürerken yeniden değişti: kirli kalsın
+      delete state.dirty[g.kind][sent.id];
+      if (sent.deleted) delete state[g.kind][sent.id];  // silme izi artık bulutta
+      n++;
+    }
+  }
+  // Birleşen listede başka cihazların aynı güne eklediği kayıtlar da var: yerele de işle
+  let changed = false;
+  for (const row of out) {
+    for (const e of row.workouts) if (applyRemote(groups.get(row.day).kind, e, row.day)) changed = true;
+  }
+  return { n, changed };
+}
+
+/** Son okumadan beri değişen satırlardaki antrenman ve programları çeker. */
+async function pullEntries(api) {
+  const c = state.cloud;
+  if (c.uid !== api.userId) { c.uid = api.userId; c.wSince = null; }   // başka hesap: baştan oku
+  const since = c.wSince;
+  let n = 0;
+  let changed = false;
+  let latest = 0;
+  for (let offset = 0; ; offset += PAGE) {
+    let q = `select=day,workouts,updated_at&workouts=neq.${EMPTY_LIST}`
+      + `&order=updated_at.asc,day.asc&limit=${PAGE}&offset=${offset}`;
+    if (since) q += `&updated_at=gte.${encodeURIComponent(since)}`;
+    const rows = (await api.select('sp_daily_activity', q)) || [];
+    for (const r of rows) {
+      const kind = r.day === PROGRAM_DAY ? 'routines' : 'workouts';
+      for (const e of Array.isArray(r.workouts) ? r.workouts : []) {
+        if (applyRemote(kind, e, r.day)) changed = true;
+      }
+      latest = Math.max(latest, Date.parse(r.updated_at || '') || 0);
+      n++;
+    }
+    if (rows.length < PAGE) break;
+  }
+  if (latest) {
+    const next = latest - SINCE_MARGIN_MS;
+    if (!since || next > Date.parse(since)) c.wSince = new Date(next).toISOString();
+  }
+  return { n, changed };
 }
 
 /* ---------------- eşitleme ---------------- */
+
+/** PostgREST toplu eklemede her satırın AYNI anahtarlara sahip olmasını ister (yoksa istek reddedilir,
+    PGRST102): satırları anahtar kümesine göre gruplayıp ayrı ayrı gönderir. */
+async function upsertGrouped(api, table, rows, onConflict) {
+  const groups = new Map();
+  for (const r of rows) {
+    const sig = Object.keys(r).sort().join(',');
+    if (!groups.has(sig)) groups.set(sig, []);
+    groups.get(sig).push(r);
+  }
+  for (const list of groups.values()) await api.upsert(table, list, { onConflict });
+}
 
 /** Yerel kirli kayıtları sunucuya gönder. */
 export async function push(api) {
@@ -428,27 +503,23 @@ export async function push(api) {
   const uid = api.userId;
   let pushed = 0;
 
+  // Gönderim sürerken değişen kayıt kirli kalsın: setDay/setWeight her seferinde yeni nesne yazar
   const dayKeys = Object.keys(state.dirty.days);
   if (dayKeys.length) {
-    const rows = dayKeys.map((k) => ({
-      user_id: uid,
-      day: k,
-      ...pick(state.days[k] || {}, ACT_FIELDS),
-    }));
-    await api.upsert('sp_daily_activity', rows, { onConflict: 'user_id,day' });
-    for (const k of dayKeys) delete state.dirty.days[k];
+    const snap = dayKeys.map((k) => [k, state.days[k]]);
+    const rows = snap.map(([k, rec]) => ({ user_id: uid, day: k, ...pick(rec || {}, ACT_FIELDS) }));
+    await upsertGrouped(api, 'sp_daily_activity', rows, 'user_id,day');
+    for (const [k, rec] of snap) if (state.days[k] === rec) delete state.dirty.days[k];
     pushed += rows.length;
   }
 
   const wKeys = Object.keys(state.dirty.weights);
   if (wKeys.length) {
-    const rows = wKeys.map((k) => ({
-      user_id: uid,
-      day: k,
-      ...pick(state.weights[k] || {}, W_FIELDS),
-    })).filter((r) => r.kg != null);
-    if (rows.length) await api.upsert('sp_weight_entries', rows, { onConflict: 'user_id,day' });
-    for (const k of wKeys) delete state.dirty.weights[k];
+    const snap = wKeys.map((k) => [k, state.weights[k]]);
+    const rows = snap.map(([k, rec]) => ({ user_id: uid, day: k, ...pick(rec || {}, W_FIELDS) }))
+      .filter((r) => r.kg != null);
+    if (rows.length) await upsertGrouped(api, 'sp_weight_entries', rows, 'user_id,day');
+    for (const [k, rec] of snap) if (state.weights[k] === rec) delete state.dirty.weights[k];
     pushed += rows.length;
   }
 
@@ -465,41 +536,57 @@ export async function push(api) {
       kcal_goal: p.kcal_goal,
       exercise_goal: p.exercise_goal,
     });
-    state.dirty.profile = false;
+    if (state.profile === p) state.dirty.profile = false;
     pushed++;
   }
 
-  pushed += await pushWorkouts(api, uid);
+  const ent = await pushEntries(api, uid);
+  pushed += ent.n;
 
   save({ now: true });
-  return { pushed };
+  if (ent.changed) emit('sync');
+  return { pushed, changed: ent.changed };
 }
+
+const DAY_FIELDS = [...ACT_FIELDS, 'updated_at'];
+const WEIGHT_FIELDS = [...W_FIELDS, 'updated_at'];
+
+/** Aynı kayıt mı (alan sırası önemsiz; eksik alan null sayılır). */
+const sameRec = (a, b, fields) => !!a && fields.every((f) => (a[f] ?? null) === (b[f] ?? null));
+/** Satırda ölçü ya da not var mı (yalnız antrenman taşıyan satırlarda yoktur). */
+const hasDayValues = (rec) => ACT_FIELDS.some((f) => f !== 'source' && rec[f] != null && rec[f] !== '');
 
 /** Sunucudaki kayıtları çek; kirli olmayan yerel kayıtların üzerine yaz. */
 export async function pull(api, { days = 400 } = {}) {
   if (!api?.isLoggedIn()) return { pulled: 0, skipped: true };
   const from = shiftDay(today(), -days);
   let pulled = 0;
+  let changed = false;
 
+  // workouts sütunu burada gelmez (antrenmanlar aşağıda, yalnız değişenler): yalnız ölçüler
   const acts = await api.select('sp_daily_activity',
-    `select=*&day=gte.${from}&order=day.desc&limit=1000`);
+    `select=day,${DAY_FIELDS.join(',')}&day=gte.${from}&order=day.desc&limit=1000`);
   for (const row of acts || []) {
     if (state.dirty.days[row.day]) continue;
-    state.days[row.day] = pick(row, [...ACT_FIELDS, 'updated_at']);
+    const next = pick(row, DAY_FIELDS);
+    const cur = state.days[row.day];
+    if (!cur && !hasDayValues(next)) continue;   // yalnız antrenman taşıyan satır: boş gün kaydı açma
+    if (!sameRec(cur, next, DAY_FIELDS)) { state.days[row.day] = next; changed = true; }
     pulled++;
   }
 
   const weights = await api.select('sp_weight_entries',
-    `select=*&order=day.desc&limit=1000`);
+    `select=day,${WEIGHT_FIELDS.join(',')}&order=day.desc&limit=1000`);
   for (const row of weights || []) {
     if (state.dirty.weights[row.day]) continue;
-    state.weights[row.day] = pick(row, [...W_FIELDS, 'updated_at']);
+    const next = pick(row, WEIGHT_FIELDS);
+    if (!sameRec(state.weights[row.day], next, WEIGHT_FIELDS)) { state.weights[row.day] = next; changed = true; }
     pulled++;
   }
 
   const prof = await api.ensureProfile(state.profile.username || null);
   if (prof && !state.dirty.profile) {
-    state.profile = {
+    const next = {
       ...state.profile,
       username: prof.username,
       reminder_time: (prof.reminder_time || '21:00').slice(0, 5),
@@ -512,20 +599,24 @@ export async function pull(api, { days = 400 } = {}) {
       exercise_goal: prof.exercise_goal,
       ingest_token: prof.ingest_token,
     };
+    if (JSON.stringify(next) !== JSON.stringify(state.profile)) { state.profile = next; changed = true; }
   }
 
-  pulled += await pullWorkouts(api);
+  const ent = await pullEntries(api);
+  pulled += ent.n;
+  if (ent.changed) changed = true;
 
   state.lastSync = new Date().toISOString();
   save({ now: true });
-  emit('sync');
-  return { pulled };
+  if (changed) emit('sync');
+  return { pulled, changed };
 }
 
+/** Gönder + çek. changed: yerel veri değişti mi (ekranı yalnız o zaman yeniden çizmek yeter). */
 export async function sync(api, opts = {}) {
   const p = await push(api);
   const q = await pull(api, opts);
-  return { ...p, ...q };
+  return { ...p, ...q, changed: !!(p.changed || q.changed) };
 }
 
 /* ---------------- dışa aktarma ---------------- */
